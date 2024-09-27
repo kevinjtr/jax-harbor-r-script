@@ -1,7 +1,8 @@
 
 
 DownloadAndPopulateDatabase<-function(site_id,assessment,baseline){
-  
+  site_id <- unique(site_id)
+  assessment <- unique(assessment)
   dbNumRows<- 0
   ReadDB = FALSE
   
@@ -75,8 +76,20 @@ DownloadAndPopulateDatabase<-function(site_id,assessment,baseline){
             
             tryCatch({
               b_list <- convertDataFrame(b_dfiv,"USGS")
-              
-              if(site_id[f] %in% c("02246500","02245340","301204081434900","02246518"))
+              browser
+              if(site_id[f] %in% c("02246500","02245340","301204081434900","02246518",
+                                   #Tier 2 Statistics
+                                   "02245290",
+                                   "02246459",
+                                   "02246751",
+                                   "02246804",
+                                   "022462002",
+                                   "294213081345300",
+                                   "300803081354500",
+                                   "301510081383500",
+                                   "301817081393600",
+                                   "302609081453300",
+                                   "302657081312400"))
               {
                 if(!ReadDB)
                 {
@@ -103,6 +116,39 @@ DownloadAndPopulateDatabase<-function(site_id,assessment,baseline){
                     {
                       b_list <- list(DFtoPlotFormat(rbind.data.frame(b_list[[1]],convertDataFrame(b_dfiv,"USGS")[[1]])))
                     }
+                  }else if (site_id[f] == "02245290")
+                  {
+                    v <- "2245290_SJR_Racy_Point_Salinity_BL_AY6/"
+                  }else if(site_id[f] == "02246459")
+                  {
+                    v <- "2246459_Cedar_River_Salinity_BL_AY6/"
+                  }else if(site_id[f] == "02246751")
+                  {
+                    v <- "2246751_Broward_River_Salinity_BL_AY6/"
+                  }else if(site_id[f] == "02246804")
+                  {
+                    v <- "2246804_Dunn_Creek_Salinity_AY6_BL/"
+                  }else if (site_id[f] == "022462002")
+                  {
+                    v <- "22462002_DurbinCk_Salinity_BL_AY6/"
+                  }else if(site_id[f] == "294213081345300")
+                  {
+                    v <- "294213081345300_SJC_DancyPt_Salinity_BL_AY6/"
+                  }else if(site_id[f] == "300803081354500")
+                  {
+                    v <- "300803081354500_JulingtonCrkHL_Salinity_BL_AY6/"
+                  }else if (site_id[f] == "301510081383500")
+                  {
+                    v <- "301510081383500_SJR_ChrisPt_Salinity_BL_AY6/"
+                  }else if(site_id[f] == "301817081393600")
+                  {
+                    v <- "301817081393600_MarkoLk_Salinity_BL_AY6/"
+                  }else if(site_id[f] == "302609081453300")
+                  {
+                    v <- "302609081453300_TroutRvrUS1_Salinity_BL_AY6/"
+                  }else if(site_id[f] == "302657081312400")
+                  {
+                    v <- "302657081312400_ClapboardBB_Salinity_BL_AY6/"
                   }
                   
                   temp = list.files(path=paste("./sjr files/",v,sep=""),pattern="*.csv")
@@ -351,7 +397,13 @@ ReadDataBase<-function(ReadDB=FALSE,saveDB,year_used,startDate,endDate,site,inte
           rows[[4]]<-as.numeric(rows[[4]])
           rows[[5]]<-as.numeric(rows[[5]])
           
-          rows$Date <- as.POSIXct(strptime(rows$Date,format='%m/%d/%Y %H:%M',tz=Sys.timezone()))
+          # Add a default time "00:00" if no time is present in the date
+          rows$Date <- ifelse(grepl(" ", rows$Date), 
+                              rows$Date, 
+                              paste0(rows$Date, " 00:00"))
+          
+          # Convert the entire column to POSIXct
+          rows$Date <- as.POSIXct(strptime(rows$Date, format='%m/%d/%Y %H:%M', tz=Sys.timezone()))
           names(rows) <- c("site_no","Date","WATER_TEMPERATURE","CONDUCTIVITY","SALINITY")
         }
         
@@ -376,6 +428,7 @@ ReadDataBase<-function(ReadDB=FALSE,saveDB,year_used,startDate,endDate,site,inte
     
     return(rows)
   },error = function(err){
+    print(err)
     print(paste("WARNING: ReadDataBase(). Site '",site,"' data for '",startDate," - ",endDate,"' was not saved.",sep=""))
   })
 }

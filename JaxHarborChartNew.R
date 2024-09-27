@@ -5,29 +5,326 @@
 #This a year based srtatistics script, everything gets analyzed in years (12months, 52 weeks, 3 quarters).
 
 
+###################### WORD DOCUMENT FUNCTIONS ############################
+
+# Function to add a title with customizable font size, boldness, and paragraph spacing
+addParagraph <- function(doc, my.title, font_size = 14, bold = FALSE, style = "Normal") {
+  # Define text properties
+  my.prop <- fp_text(font.size = font_size, bold = bold, font.family = "Times New Roman")
+  
+  # Create the paragraph with the specified text and paragraph properties
+  the.title <- fpar(ftext(my.title, prop = my.prop))
+  
+  # Add the formatted paragraph to the document
+  doc <- body_add_fpar(doc, the.title, style = style)
+  
+  return(doc)
+}
+
+# add an image, such as a jpg or png file
+addImage=function(doc, image, h=5, w=5){
+  doc = body_add_img(doc, src=image,
+                     height=h, width=w,
+                     style="centered")
+  return(doc)
+}
+
+# start landscape
+startLandscape=function(doc){
+  doc=body_end_section_continuous(doc)
+  return(doc)
+}
+
+# end landscape
+endLandscape=function(doc){
+  doc=body_end_section_landscape(doc)
+  return(doc)
+}
+
+# add an empty line
+add.empty.line=function(doc){
+  doc = body_add_par(doc, " ")
+  return(doc)
+}
+#add page break
+
+addPageBreak=function(doc){
+  doc = body_add_break(doc, pos="after")
+  return(doc)
+}
+
+
+addTable <- function(doc, tbl, col.keys=NULL, col.digits=NULL,add_row_names=FALSE, table_name="", table_title="") {
+  
+  if("matrix" %in% class(tbl)){
+    tbl <- as.data.frame(tbl)
+  }
+  
+  row_names_switch <- function(x) {
+    # Handle cases with switch
+    result <- switch(x,
+                     "AnnualAllStations" = FALSE,
+                     # Default case, can handle pattern matching here
+                     {
+                       if(grepl("^Station \\d+", x) || grepl("^Report-P3-\\d+", x) || grepl("^APPX-P3-\\d+", x)){
+                         FALSE
+                       }else {
+                         TRUE  # Default case if no match found
+                       }
+                     })
+    return(result)
+  }
+  
+  row_header_switch <- function(x) {
+    # Handle cases with switch
+    result <- switch(x,
+                     "AnnualAllStations" = FALSE,
+                     "Mean_DF" = TRUE,
+                     # Default case, can handle pattern matching here
+                     {
+                       if(grepl("^Report-P3-\\d+", x) || grepl("^APPX-P3-\\d+", x)){
+                         FALSE
+                       } else {
+                         TRUE  # Default case if no match found
+                       }
+                     })
+    return(result)
+  }
+  
+  delete_header_switch <- function(x) {
+    # Handle cases with switch
+    result <- switch(x,
+                     "Mean_DF" = TRUE,
+                     # Default case, can handle pattern matching here
+                     {
+                        TRUE  # Default case if no match found
+                     })
+    return(result)
+  }
+  
+  tryCatch({
+    data <- tbl
+    # Add row names as the first column
+    if(row_names_switch(table_name)){
+      data <- cbind(RowNames = rownames(tbl), tbl)
+      
+      if(colnames(data)[1] == "RowNames"){
+        colnames(data)[1] <- ""
+      }
+    }
+    
+    if(row_header_switch(table_name)){
+      # Add column names as the first row
+      data <- rbind(ColNames = colnames(data), data)
+      
+      # Rename columns to ensure no empty names
+      colnames(data) <- ifelse(colnames(data) == "", paste0("Colform", seq_along(colnames(data))), colnames(data))
+      
+      # Define a pattern to match column names in the format "Column1", "Column 2", etc.
+      pattern <- "^Colform\\s*\\d+$"
+      
+      # Check if all column names match the pattern
+      if (all(grepl(pattern, colnames(data)))) {
+        # Overwrite the first row with blank fields if the pattern matches
+        data[1, ] <- ""
+      }
+    }
+    
+    # Convert row names to a column
+    # data_with_rownames <- cbind(RowNames = rownames(data), data)
+    # rownames(data_with_rownames) <- NULL  # Remove the original row names
+    
+    # Verify column names
+    # print(colnames(data_with_rownames))  # Should print "RowNames", "Column1", "Column2"
+    
+    loops <- 1
+    n <- -1
+    col_length <- -1
+    
+    if(table_name %in% c("AnnualAllStations", "Mean_DF") && ncol(data) > col_length){
+      col_length <- ifelse(ncol(data) > 11,11,ncol(data))
+      n <- col_length
+      loops <- ceiling(ncol(data)/col_length)
+    }
+    
+    for(k in 1:loops)#Per Tables
+    {
+      filData <- data
+      
+      if(n != -1){
+        i <- ifelse(k > 1,col_length*(k-1)+1,1)
+        filData <- data[,(i):(n)]
+        
+        if(k>1){
+          filData <- cbind.data.frame(data[,1], filData)
+        }
+      }
+      
+      # Create a flextable object from the modified filData frame
+      ft <- flextable(filData) %>% 
+        set_header_labels(Sepal.Length = " ")
+      
+      # Type of border
+      small_border = fp_border_default(color="gray", width = 1)
+      big_border = fp_border_default(color="gray", width = 1.5)
+      
+      # Apply zebra striping
+      ft <- bg(ft, i = seq(1, nrow(filData), by = 2), bg = "#F2F2F2")  # Light gray for odd rows
+      ft <- bg(ft, i = seq(2, nrow(filData), by = 2), bg = "#FFFFFF")  # White for even rows
+      
+      # Remove all borders
+      ft <- border_remove(x = ft)
+      
+      # Set font size
+      ft <- fontsize(ft, size = 9)
+      
+      # Change the font for the entire table (header and body)
+      ft <- font(ft, fontname = "Times New Roman")
+      
+      # Set borders
+      ft <- border_inner_h(ft, part="all", border = small_border )
+      ft <- border_inner_v(ft, part="all", border = small_border )
+      ft <- border_outer(ft, part="all", border = big_border )
+      
+      # Apply autofit to adjust columns and rows to fit content
+      ft <- autofit(ft)
+      
+      if(grepl("^Station \\d+", table_name)){
+        # Set column widths manually
+        ft <- width(ft, j = 1, width = .7)  # Apply max width to Column1
+        ft <- width(ft, j = 2, width = 1.4)  # Apply max width to Column1
+        
+        for (i in 3:13) {
+          ft <- width(ft, j = i, width = .5)
+        }
+        
+        ft <- width(ft, j = 14, width = 1)  # Apply max width to Column2
+        ft <- width(ft, j = 15, width = 1)  # Apply max width to Column2
+      }else if(table_name %in% c("P2-Mean","P2-q90q95","P2-MinMax")){
+        
+        # Set the width of columns
+        for (i in 1:(ncol(filData))) {
+          ft <- width(ft, j = i, width = .85)
+        }
+      }else if(table_name %in% c("Mean_Stdev","Q90 / Q95","Min_Max")){
+        
+        ft <- width(ft, j = 1, width = 1.55)
+        
+        # Set the width of columns
+        for (i in 2:(ncol(filData))) {
+          ft <- width(ft, j = i, width = .92)
+        }
+      }
+      
+      # Set padding (spacing) before and after the text to 0
+      ft <- padding(ft, padding.top = 0, padding.bottom = 0, part = "all")
+      
+      # Optional: Apply column formatting if needed
+      if (!is.null(col.keys)) {
+        for (i in seq_along(col.keys)) {
+          ft <- set_table_properties(ft, width = col.keys[i], layout = "fixed")
+        }
+      }
+      
+      # Remove Header
+      if(delete_header_switch(table_name)){
+        ft <- delete_part(x = ft, part = "header")
+      }
+      
+      if(loops > 1){
+        if(k > 1){
+          doc <- addPageBreak(doc)
+        }
+        doc <- addParagraph(doc, paste(table_title,".",LETTERS[k],sep=""))
+      }else{
+        doc <- addParagraph(doc, table_title)
+      }
+      
+      # Add flextable to the Word document
+      doc <- body_add_flextable(doc, value = ft)
+      
+      if(n != -1){
+        if(n + col_length < ncol(data)){
+          n <- n + col_length
+        }else{
+          n <- ncol(data)
+        }
+      }
+    }
+    
+  },error = function(err) {
+    print(paste("ERROR: Adding table [",table_name,"] to word docx.",sep=""))
+  })
+  
+  return(doc)
+}
+
+# add a data frame as a table
+addTableOld=function(doc, tbl, col.keys=NULL, col.digits=NULL){
+  # create basic flextable
+  if(!("data.frame" %in% class(tbl))){
+    tbl <- as.data.frame(tbl)
+  }
+  
+  f.table=qflextable(tbl)
+  # set numbers of decimals for numeric variables, if specified
+  if(!is.null(col.keys)){
+    for(j in 1:length(col.keys)){
+      f.table=colformat_num(x=f.table,
+                            col_keys=col.keys[j],
+                            digits=col.digits[j])
+    }
+  }
+  
+  # set table borders
+  f.table=border_outer(f.table, part="all",
+                       border=fp_border(color="black", width = 1))
+  f.table=border_inner_h(f.table, part="all",
+                         border=fp_border(color="black", width = 1))
+  f.table=border_inner_v(f.table, part="all",
+                         border=fp_border(color="black", width = 1))
+  
+  # set fonts
+  f.table=font(f.table,  fontname = "Times", part = "all")
+  # also set the table's header font as bold
+  f.table=bold(f.table, part = "header")
+  
+  # add the table to the document
+  doc <- flextable::body_add_flextable(doc, 
+                                       value = f.table, 
+                                       align = "left" )
+  return(doc)
+}
+
 ########################### FILE CREATION ##################################
- 
+
 CreateWordDocWithGeneratedTitlePage<-function(title,bl,asse,p,filename,site_id,b,a,startYear,endYear){
   
   extension <- ".docx"
   
-  doc <- docx(title=title)
+  #ooc <- docx(title=title)
+  doc = read_docx()
   
   # Add titles for first page.
-  options( "ReporteRs-fontsize" = 24 )
-  options( "ReporteRs-fontweigh" = "bold" )
-  options('ReporteRs-default-font' = "Times New Roman")
-  doc <- addParagraph(doc,paste(getPeriod(p)," Statistics ",filename,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  doc <- addParagraph(doc,paste("for ",length(site_id)," site/s",sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
+  #options( "ReporteRs-fontsize" = 24 )
+  #options( "ReporteRs-fontweigh" = "bold" )
+  #options('ReporteRs-default-font' = "Times New Roman")
+  #ooc <- addParagraph(doc,paste(getPeriod(p)," Statistics ",filename,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
+  #ooc <- addParagraph(doc,paste("for ",length(site_id)," site/s",sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
+  
+  doc <- addParagraph(doc, paste(getPeriod(p)," Statistics ",filename,sep=""), 24, FALSE, "centered")
+  doc <- addParagraph(doc, paste("for ",length(site_id)," site/s",sep=""), 24, FALSE, "centered")
   
   if(!is.null(bl))
   {
-    doc <- addParagraph(doc,paste("Base Period:\nfrom ",months(b[1])," ",as.numeric(format.Date(b[1],"%d")),", ",format.Date(b[1],"%Y")," - ",months(b[2])," ",as.numeric(format.Date(b[2],"%d")),", ",format.Date(b[2],"%Y"),sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
+    #ooc <- addParagraph(doc,paste("Base Period:\nfrom ",months(b[1])," ",as.numeric(format.Date(b[1],"%d")),", ",format.Date(b[1],"%Y")," - ",months(b[2])," ",as.numeric(format.Date(b[2],"%d")),", ",format.Date(b[2],"%Y"),sep=""), par.properties = chprop( parProperties(), text.align = "center" ))
+    doc <- addParagraph(doc, paste("Base Period: from ",months(b[1])," ",as.numeric(format.Date(b[1],"%d")),", ",format.Date(b[1],"%Y")," - ",months(b[2])," ",as.numeric(format.Date(b[2],"%d")),", ",format.Date(b[2],"%Y"),sep=""), 24, FALSE, "centered")
   }
   
   if(!is.null(asse))
   {
-    doc <- addParagraph(doc,paste("Assessment Period:\nfrom ",getMonthCharacter(a[1])," 1, ",a[2]," - ",getMonthCharacter(a[3])," ",getmonthEndDay(a[3],a[4]),", ",a[4],sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
+    #ooc <- addParagraph(doc, paste("Assessment Period:\nfrom ",getMonthCharacter(a[1])," 1, ",a[2]," - ",getMonthCharacter(a[3])," ",getmonthEndDay(a[3],a[4]),", ",a[4],sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
+    doc <- addParagraph(doc, paste("Assessment Period: from ",getMonthCharacter(a[1])," 1, ",a[2]," - ",getMonthCharacter(a[3])," ",getmonthEndDay(a[3],a[4]),", ",a[4],sep=""), 24, FALSE, "centered")
   }
   
   printYear <- "YEAR"
@@ -39,20 +336,25 @@ CreateWordDocWithGeneratedTitlePage<-function(title,bl,asse,p,filename,site_id,b
   {
     printYear <- paste(startYear,"-",endYear,sep="")
   }
-  doc <- addParagraph(doc, paste("\n\nGenerated on: ",months(Sys.Date()),format.Date(Sys.Date()," %d, %Y "),format(Sys.time(),"%H:%M:%S"),sep=""), par.properties = parProperties(text.align = "center"))
+  
+  #ooc <- addParagraph(doc, paste("\n\nGenerated on: ",months(Sys.Date()),format.Date(Sys.Date()," %d, %Y "),format(Sys.time(),"%H:%M:%S"),sep=""), par.properties = parProperties(text.align = "center"))
+  #ooc <- addPageBreak(doc)
+  doc <- addParagraph(doc,"")
+  doc <- addParagraph(doc,"")
+  doc <- addParagraph(doc, paste("Generated on: ",months(Sys.Date()),format.Date(Sys.Date()," %d, %Y "),format(Sys.time(),"%H:%M:%S"),sep=""), 24, FALSE, "centered")
   doc <- addPageBreak(doc)
   
-  options( "ReporteRs-fontsize" = 12 )
+  #options( "ReporteRs-fontsize" = 12 )
   
   # Add  a table
-  doc <- addSection(doc, landscape = TRUE)
+  #doc <- addSection(doc, landscape = TRUE)
+  doc <- startLandscape(doc)
   
   return(doc)
 }
 
 isDFValuesOverN<-function(df,n){
   c <- 0
-  
   df <- as.data.frame(df)
   for(j in 1:(ncol(df)))
   {
@@ -66,7 +368,7 @@ isDFValuesOverN<-function(df,n){
       if(!is.na(as.double(df[i,j])))
       {
         c <- c + sum(as.double(df[i,j]) >= n)
-      }else if(grepl("?",df[i,j]))
+      }else if(grepl("±",df[i,j]))
       {
         c <- c + sum(as.double(unlist(regmatches(df[i,j],gregexpr("[[:digit:]]+\\.*[[:digit:]]*",df[i,j])))) >= n)
       }else if(grepl("/",df[i,j]))
@@ -98,11 +400,11 @@ DataFrameRoundToUSGS<-function(df){
   {
     for(i in 1:(nrow(df)))
     {
-      if(grepl("?",df[i,j]))
+      if(grepl("±",df[i,j]))
       {
         x <- as.double(unlist(regmatches(df[i,j],gregexpr("[[:digit:]]+\\.*[[:digit:]]*",df[i,j]))))
         x <- format(round(x,r),nsmall = r)
-        df[i,j] <- paste(x[1],"  (?",x[2],")",sep="")
+        df[i,j] <- paste(x[1],"  (±",x[2],")",sep="")
         
       }else if(grepl("/",df[i,j]))
       {
@@ -254,7 +556,7 @@ GetPlotTitleName<-function(n,period,plotName,site,type="Report"){
 
 GrabPlotNumber<-function(x){
   y <- x
- 
+  
   if(grepl( "/", x, fixed = TRUE)){
     splt_string <- strsplit(y, split = "/")[[1]]
     y <- splt_string[[length(splt_string)]]
@@ -371,12 +673,23 @@ BinomConfInterval<-function(successes,total){
 
 ConfInterval<-function(data,cl,old=FALSE){
   
+  all_same <- function(v) {
+    if (length(v) == 0) {
+      return(TRUE)  # Assume TRUE for empty vectors
+    }
+    all(v == v[1])
+  }
+  
   tryCatch({
     if(!old)
     {
-      if(unique(data) == 1)
+      if(all_same(data))
       {
-        ci <- rep(unique(d),3)
+        if(length(data) == 0){
+          data <- c(NA)
+        }
+        
+        ci <- rep(unique(data),3)
         names(ci) <- c("mean","lwr.ci","upr.ci")
       }else
       {
@@ -407,6 +720,7 @@ ConfInterval<-function(data,cl,old=FALSE){
 #Returns: nothing.
 #Status: tested.
 GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
+  site_id <- unique(site_id)
   ReportWrite <- TRUE
   AppendixWrite <- TRUE
   db <- "USGS"
@@ -503,7 +817,6 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
               b_list <- NULL
               print("Downloading Baseline Year...")
               #b_dfiv2 <- read.csv("./baselineIV.csv",header=TRUE)
-              browser()
               b_dfiv<- ReadDataBase(ReadDB,saveDB,"Baseline",baseline[1],baseline[2],site_id[f],interval="IV","USGS")
               #b_cn <- gsub('dateTime','Date',gsub('...Bottom.','',gsub('...Top.','',colnames(b_dfiv))))
               #colnames(b_dfiv)[colnames(b_dfiv)=="dateTime"] <- "Date"
@@ -524,7 +837,19 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
               tryCatch({
                 b_list <- DFtoPlotFormat(convertDataFrame(b_dfiv,"USGS"))
                 
-                if(site_id[f] %in% c("02246500","02245340","301204081434900","02246518"))
+                if(site_id[f] %in% c("02246500","02245340","301204081434900","02246518",
+                                     #Tier 2 Statistics
+                                     "02245290",
+                                     "02246459",
+                                     "02246751",
+                                     "02246804",
+                                     "022462002",
+                                     "294213081345300",
+                                     "300803081354500",
+                                     "301510081383500",
+                                     "301817081393600",
+                                     "302609081453300",
+                                     "302657081312400"))
                 {
                   if(!ReadDB)
                   {
@@ -540,7 +865,6 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
                     }else if(site_id[f] == "02245340")
                     {
                       v <- "shans/"
-                      browser()
                       #b_dfiv <- ReadDataBase(ReadDB,saveDB,"Baseline","2016-01-01","2017-11-30","02245340","IV","USGS")
                       b_dfiv <- rbind.data.frame(ReadDataBase(ReadDB,saveDB,"Baseline","2007-01-01","2009-12-31",c("295856081372301","02245340"),"IV","USGS"),b_dfiv)
                       
@@ -898,7 +1222,7 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
             b_startMonth <- months(startDate)
             b_startYear <- format.Date(b_startDate,"%Y")
             b_endYear <- format.Date(b_endDate,"%Y")
-
+            
             if(g == 1){
               print(paste("BL Dates: [",b_startDate," to ",b_endDate,"] Length: [dfiv: ",length(b_dfiv[[1]]),", dfdv: ",length(b_dfdv[[1]]),"]",sep=""))
             }
@@ -906,53 +1230,6 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
             listofBTables <- createStatistics(b_dfiv,b_dfdv,b_startDate,b_endDate,period[g],startMonth,b_startYear,db)
           }
           
-          # Create a Word document.
-          # extension <- ".docx"
-          # doc <- docx(title="Generated Statistics")
-          # 
-          # # Add titles for first page.
-          # options( "ReporteRs-fontsize" = 24 )
-          # options( "ReporteRs-fontweigh" = "bold" )
-          # options('ReporteRs-default-font' = "Times New Roman")
-          # doc <- addParagraph(doc,paste(filename," ",getPeriod(period[g])," Statistics ",sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-          # doc <- addParagraph(doc,paste("for ",getSiteName(site_id[f],""),sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-          # 
-          # if(!is.null(bl))
-          # {
-          #   #bl <- as.POSIXct(bl)
-          #   #b_startDate,b_endDate
-          #   
-          #   doc <- addParagraph(doc,paste("Base Period:\nfrom ",months(b_startDate)," ",as.numeric(format.Date(b_startDate,"%d")),", ",format.Date(b_startDate,"%Y")," - ",months(b_endDate)," ",as.numeric(format.Date(b_endDate,"%d")),", ",format.Date(b_endDate,"%Y"),sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-          #   #doc <- addParagraph(doc,paste("Base Period:\nfrom ",months(bl[1])," ",as.numeric(format.Date(bl[1],"%d")),", ",format.Date(bl[1],"%Y")," - ",months(bl[2])," ",as.numeric(format.Date(bl[2],"%d")),", ",format.Date(bl[2],"%Y"),sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-          # }
-          # 
-          # if(!is.null(mid))
-          # {
-          #   mid <- as.POSIXct(mid)
-          #   doc <- addParagraph(doc,paste("Middle Period:\nfrom ",months(mid[1])," ",as.numeric(format.Date(mid[1],"%d")),", ",format.Date(mid[1],"%Y")," - ",months(mid[2])," ",as.numeric(format.Date(mid[2],"%d")),", ",format.Date(mid[2],"%Y"),sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-          # }
-          # 
-          # if(!is.null(asse))
-          # {
-          #   doc <- addParagraph(doc,paste("Assessment Period:\nfrom ",getMonthCharacter(startMonth)," 1, ",startYear," - ",getMonthCharacter(endMonth)," ",getmonthEndDay(endMonth,endYear),", ",endYear,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-          # }
-          # 
-          # printYear <- "YEAR"
-          # if(startYear == endYear)
-          # {
-          #   printYear <- startYear
-          # }else
-          # {
-          #   printYear <- paste(startYear,"-",endYear,sep="")
-          # }
-          # doc <- addParagraph(doc, paste("\n\nGenerated on: ",months(Sys.Date()),format.Date(Sys.Date()," %d, %Y "),format(Sys.time(),"%H:%M:%S"),sep=""), par.properties = parProperties(text.align = "center"))
-          # doc <- addPageBreak(doc)
-          # options( "ReporteRs-fontsize" = 12 )
-          # 
-          # # Add  a table
-          # doc <- addSection(doc, landscape = TRUE)
-          # doc <- addTitle(doc, paste(filename,".",f,".",g," - ",getPeriod(period[g])," Statistics for ",getSiteName(site_id[f],""),sep=""), level=2)
-          # 
           tableNames <- c()
           
           if(!is.null(asse))
@@ -960,17 +1237,6 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
             for(i in 1:(length(listofATables)))
             {
               tableNames <- c(tableNames,names(listofATables)[i])
-              #my_text <- pot(paste(filename,".",f,".",period[g],".t",tb," - ",getPeriod(period[g])," Statistics for ",getSiteName(site_id[f],""),sep=""),textProperties(font.weight='bold', font.size = 12))
-              # doc <- addParagraph(doc, my_text)
-              # tb <- tb + 1
-              # doc <- addParagraph(doc, paste("Database: ",db,"      Site: ",site_id[f],"      Observation: ",names(listofATables)[i],"      Year: ",printYear," [Assessment]",sep=""))
-              # options( "ReporteRs-fontsize" = 9 )
-              # data <- light.table(listofATables[[i]])
-              # data <- setZebraStyle(data,odd = '#eeeeee', even = 'white')
-              # data <- setFlexTableWidths(data, c(.9,0.7,1.5,.5,.5,.6,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5))
-              # doc <- addFlexTable(doc,data,par.properties=parCenter())
-              # options( "ReporteRs-fontsize" = 12 )
-              # doc<-addPageBreak(doc)
             }
           }
           # 
@@ -1003,29 +1269,29 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
           # }
           if(!is.null(bl))
           {
-          #   if(b_startYear == b_endYear)
-          #   {
-          #     b_printYear <- b_startYear
-          #   }else
-          #   {
-          #     b_printYear <- paste(b_startYear,"-",b_endYear,sep="")
-          #   }
-          #   
+            #   if(b_startYear == b_endYear)
+            #   {
+            #     b_printYear <- b_startYear
+            #   }else
+            #   {
+            #     b_printYear <- paste(b_startYear,"-",b_endYear,sep="")
+            #   }
+            #   
             b_tableNames <- c()
             for(i in 1:(length(listofBTables)))
             {
               b_tableNames <- c(b_tableNames,names(listofBTables)[i])
-          #     my_text <- pot(paste(filename,".",f,".",period[g],".t",tb," - ",getPeriod(period[g])," Statistics for ",getSiteName(site_id[f],""),sep=""),textProperties(font.weight='bold', font.size = 12))
-          #     doc <- addParagraph(doc, my_text)
-          #     tb <- tb + 1
-          #     doc <- addParagraph(doc, paste("Database: ",db,"      Site: ",site_id[f],"      Observation: ",names(listofBTables)[i],"      Year: ",b_printYear," [Baseline]",sep=""))
-          #     options( "ReporteRs-fontsize" = 9 )
-          #     data <- light.table(listofBTables[[i]])
-          #     data <- setZebraStyle(data,odd = '#eeeeee', even = 'white')
-          #     data <- setFlexTableWidths(data, c(.9,0.7,1.5,.5,.5,.6,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5))
-          #     doc <- addFlexTable(doc,data,par.properties=parCenter())
-          #     options( "ReporteRs-fontsize" = 12 )
-          #     doc<-addPageBreak(doc)
+              #     my_text <- pot(paste(filename,".",f,".",period[g],".t",tb," - ",getPeriod(period[g])," Statistics for ",getSiteName(site_id[f],""),sep=""),textProperties(font.weight='bold', font.size = 12))
+              #     doc <- addParagraph(doc, my_text)
+              #     tb <- tb + 1
+              #     doc <- addParagraph(doc, paste("Database: ",db,"      Site: ",site_id[f],"      Observation: ",names(listofBTables)[i],"      Year: ",b_printYear," [Baseline]",sep=""))
+              #     options( "ReporteRs-fontsize" = 9 )
+              #     data <- light.table(listofBTables[[i]])
+              #     data <- setZebraStyle(data,odd = '#eeeeee', even = 'white')
+              #     data <- setFlexTableWidths(data, c(.9,0.7,1.5,.5,.5,.6,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5))
+              #     doc <- addFlexTable(doc,data,par.properties=parCenter())
+              #     options( "ReporteRs-fontsize" = 12 )
+              #     doc<-addPageBreak(doc)
             }
           }
           
@@ -1069,13 +1335,6 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
             }
           }
           
-          #options( "ReporteRs-fontsize" = 12 )
-          #doc <- addSection(doc, landscape = FALSE)
-          #options( "ReporteRs-fontsize" = 12 )
-          
-          #Add plots into the Word document
-          #doc <- addTitle(doc, paste(filename,".",f,".",g," - ","Figures",sep=""), level=2)
-          
           plotDataList <- list()
           
           #Daily Values First.
@@ -1108,7 +1367,7 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
                 mList <- m_list[[j]]
                 mList <- RoundSalinityValues(mList)
               }
-          
+              
               if(length(b_list) == 0)
               {
                 bList <- NULL
@@ -1117,7 +1376,7 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
                 bList <- b_list[[j]]
                 bList <- RoundSalinityValues(bList)
               }
-          
+              
               if(length(plotDataList) == 0)
               {
                 aList <- NULL
@@ -1135,23 +1394,21 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
                   print(paste("Boxplot: aListAllYears [",nrow(aListAllYears),"] was updated...",sep=""))
                 }
               }
-          
+              
               ### Box Plot ###
               if(i == 1 && length(b_list) != 0 && y == length(assessment) && period[g] == floor(period[g]) && !DISABLE_GRAPH_GENERATE)#Boxplots
               {  print("GENERATING BOXPLOT.")
-                #doc <- addSection(doc, landscape = TRUE)
                 #b_boxplotToDocx(doc,aList,bList,mList,period[g],tableNames[j],site_id[f],FALSE,startDate,c(filename,f,period[g],fg))
                 b_boxplotToDocx("doc",aList,bList,mList,aListAllYears,period[g],tableNames[j],site_id[f],FALSE,startDate,c(filename,f,period[g],fg))
                 fg <- fg + 1
                 #b_boxplotToDocx(doc,aList,bList,mList,period[g],tableNames[j],site_id[f],TRUE,startDate,c(filename,f,period[g],fg))
                 #fg <- fg + 1
               }
-
+              
               ### Cum Freq ###
               if(i == 2 && length(b_list) != 0 && y == length(assessment) && period[g] == floor(period[g]) && !DISABLE_GRAPH_GENERATE)#Cumulative Frequency
               {
                 print("GENERATING CUM FREQ.")
-                #doc <- addSection(doc, landscape = FALSE)
                 cumfreq_tables <- b_cumFreqOrHistogramToDocx("doc",aList,bList,mList,period[g],tableNames[j],site_id[f],"cumfreq",startDate,c(filename,f,period[g],fg),cumfreq_tables)
                 fg <- FigureCounter(fg,period[g])
                 # if(period[g] == period[length(period)])
@@ -1163,28 +1420,26 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
               # ## Histogram ###
               if(i == 3 && length(b_list) != 0 && y == length(assessment) && period[g] == floor(period[g]) && !DISABLE_GRAPH_GENERATE)#Histograms
               {  print("GENERATING HISTOGRAM.")
-                #doc <- addSection(doc, landscape = TRUE)
                 #b_cumFreqOrHistogramToDocx(doc,aList,bList,mList,period[g],tableNames[j],"histogram1",startDate)
                 b_cumFreqOrHistogramToDocx("doc",aList,bList,mList,period[g],tableNames[j],site_id[f],"histogram2",startDate,c(filename,f,period[g],fg))
                 fg <- FigureCounter(fg,period[g])
                 fg <- FigureCounter(fg,period[g])
               }
-
+              
               ### Salinity Stress Table ###
-              if(i == 4 && length(b_list) != 0 && y == length(assessment) && period[g] ==  period[length(period)])#Stress Table for last year.
-              {
-                print("GENERATING STRESS TABLE.")
-                #doc <- addSection(doc, landscape = TRUE)
-
-                a_dv <- DfMean(aList,1)
-                b_dv <- DfMean(bList,1)
-                m_dv <- DfMean(mList,1)
-
-                #salinityStressTable(doc,a_dv,b_dv,m_dv,paste(tableNames[j]," [Daily Value]",sep=""),site_id[f],db,c(filename,f,period[g],tb))
-                stressTableList <- list.append(stressTableList,salinityStressTable(f,a_dv,b_dv,m_dv,paste(tableNames[j]," [Daily Value]",sep=""),site_id[f],db,c(filename,f,period[g],tb)))
-                stressTableNames <- c(stressTableNames,paste("Station ",site_id[f],sep=""))
-              }
-
+              # if(i == 4 && length(b_list) != 0 && y == length(assessment) && period[g] ==  period[length(period)])#Stress Table for last year.
+              # {
+              #   print("GENERATING STRESS TABLE.")
+              #   
+              #   a_dv <- DfMean(aList,1)
+              #   b_dv <- DfMean(bList,1)
+              #   m_dv <- DfMean(mList,1)
+              #   
+              #   #salinityStressTable(doc,a_dv,b_dv,m_dv,paste(tableNames[j]," [Daily Value]",sep=""),site_id[f],db,c(filename,f,period[g],tb))
+              #   #stressTableList <- list.append(stressTableList,salinityStressTable(f,a_dv,b_dv,m_dv,paste(tableNames[j]," [Daily Value]",sep=""),site_id[f],db,c(filename,f,period[g],tb)))
+              #   stressTableNames <- c(stressTableNames,paste("Station ",site_id[f],sep=""))
+              # }
+              
               ## Moving Avg Plot ###
               if(i == 5 && length(b_list) != 0 && y == length(assessment) && period[g] ==  period[length(period)] && !DISABLE_GRAPH_GENERATE)#sevenDayMovingAveragePlot
               {
@@ -1194,7 +1449,6 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
             }
           }
           # Write the Word document to a file
-          #doc <- addSection(doc, landscape = FALSE)
           #writeDoc(doc, file = getFileName(paste(filename,".",f,".",period[g]," ",getPeriod(period[g])," Statistics for ",getSiteName(site_id[f],"")," from ",printYear,sep=""),extension))
           
         }else
@@ -1210,19 +1464,13 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
     #y_past <- 0#reset y_past due to change of station.
   }
   #years done.
-  
-  # if(length(cumfreq_tables) == 0)
-  # {
-  #   load("ctables.RData")
-  # }
-  
   names(tempTableList) <- tempTableNames
   
   for(i in 1:(length(tempTableList)))
   {
     tempTableList[[i]]["Ci.90 (Lo-Up)"] <- paste(tempTableList[[i]][["Ci.90.Lo"]]," - ",tempTableList[[i]][["Ci.90.Up"]],sep = '')
     tempTableList[[i]]["Ci.95 (Lo-Up)"] <- paste(tempTableList[[i]][["Ci.95.Lo"]]," - ",tempTableList[[i]][["Ci.95.Up"]],sep = '')
-    tempTableList[[i]]["Mean_Stdev"] <- paste(tempTableList[[i]][["Mean"]]," (?",tempTableList[[i]][["Stdev"]],")",sep = '')
+    tempTableList[[i]]["Mean_Stdev"] <- paste(tempTableList[[i]][["Mean"]]," (±",tempTableList[[i]][["Stdev"]],")",sep = '')
     tempTableList[[i]]["Q90 / Q95"] <- paste(tempTableList[[i]][["Q.90"]]," / ",tempTableList[[i]][["Q.95"]],sep = '')
     tempTableList[[i]]["Min_Max"] <- paste(tempTableList[[i]][["Min"]]," - ",tempTableList[[i]][["Max"]],sep = '')
   }
@@ -1237,13 +1485,12 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
   col_names <-  c(bl, paste0("AY",1:(length(assessment))))
   station_locations <- c("TOP","MIDDLE","BOTTOM","NA")[c(length(nmL[grepl("TOP", nmL,fixed = TRUE)]) > 0, length(nmL[grepl("MIDDLE", nmL,fixed = TRUE)]) > 0, length(nmL[grepl("BOTTOM", nmL,fixed = TRUE)]) > 0, length(nmL[grepl("NA", nmL,fixed = TRUE)]) > 0)]
   
-  #save.image(file='myEnvironment.RData')
+  save.image(file='myEnvironment.RData')
   #save(list = c("tempTableList","site_id","period","assessment","bl","col_names","station_locations"),file='data.RData')
-  
+  save(list = ls(), file = "data.RData")
   
   #load(file='myEnvironment.RData')
   #load(file='data.RData')
-  
   
   aa <- Tier1_AnnualALLStations(tempTableList,site_id,period,assessment,bl,col_names,station_locations)
   
@@ -1265,116 +1512,56 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
   
   doc <- CreateWordDocWithGeneratedTitlePage("Generated Report Statistics",bl,asse,period[g],filename,site_id,c(b_startDate,b_endDate),c(startMonth,startYear,endMonth,endYear),startYear,endYear)
 
-  # doc <- docx(title="Generated Report Statistics")
-  # apx_doc <- docx(title="Generated Appendix [1] Statistics")
-  # apx_doc2 <- docx(title="Generated Appendix [2] Statistics")
-  # 
-  # # Add titles for first page.
-  # options( "ReporteRs-fontsize" = 24 )
-  # options( "ReporteRs-fontweigh" = "bold" )
-  # options('ReporteRs-default-font' = "Times New Roman")
-  # doc <- addParagraph(doc,paste(getPeriod(period[g])," Statistics ",filename,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  # doc <- addParagraph(doc,paste("for ",length(site_id)," site/s",sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  # 
-  # apx_doc <- addParagraph(apx_doc,paste(getPeriod(period[g])," Statistics ",filename,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  # apx_doc <- addParagraph(apx_doc,paste("for ",length(site_id)," site/s",sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  # apx_doc2 <- addParagraph(apx_doc2,paste(getPeriod(period[g])," Statistics ",filename,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  # apx_doc2 <- addParagraph(apx_doc2,paste("for ",length(site_id)," site/s",sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  # 
-  # if(!is.null(bl))
-  # {
-  #   #bl <- as.POSIXct(bl)
-  #   #b_startDate,b_endDate
-  # 
-  #   doc <- addParagraph(doc,paste("Base Period:\nfrom ",months(b_startDate)," ",as.numeric(format.Date(b_startDate,"%d")),", ",format.Date(b_startDate,"%Y")," - ",months(b_endDate)," ",as.numeric(format.Date(b_endDate,"%d")),", ",format.Date(b_endDate,"%Y"),sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  #   apx_doc <- addParagraph(apx_doc,paste("Base Period:\nfrom ",months(b_startDate)," ",as.numeric(format.Date(b_startDate,"%d")),", ",format.Date(b_startDate,"%Y")," - ",months(b_endDate)," ",as.numeric(format.Date(b_endDate,"%d")),", ",format.Date(b_endDate,"%Y"),sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  #   apx_doc2 <- addParagraph(apx_doc2,paste("Base Period:\nfrom ",months(b_startDate)," ",as.numeric(format.Date(b_startDate,"%d")),", ",format.Date(b_startDate,"%Y")," - ",months(b_endDate)," ",as.numeric(format.Date(b_endDate,"%d")),", ",format.Date(b_endDate,"%Y"),sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  #   #doc <- addParagraph(doc,paste("Base Period:\nfrom ",months(bl[1])," ",as.numeric(format.Date(bl[1],"%d")),", ",format.Date(bl[1],"%Y")," - ",months(bl[2])," ",as.numeric(format.Date(bl[2],"%d")),", ",format.Date(bl[2],"%Y"),sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  # }
-  # 
-  # if(!is.null(mid))
-  # {
-  #   mid <- as.POSIXct(mid)
-  #   doc <- addParagraph(doc,paste("Middle Period:\nfrom ",months(mid[1])," ",as.numeric(format.Date(mid[1],"%d")),", ",format.Date(mid[1],"%Y")," - ",months(mid[2])," ",as.numeric(format.Date(mid[2],"%d")),", ",format.Date(mid[2],"%Y"),sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  # }
-  # 
-  # if(!is.null(asse))
-  # {
-  #   doc <- addParagraph(doc,paste("Assessment Period:\nfrom ",getMonthCharacter(startMonth)," 1, ",startYear," - ",getMonthCharacter(endMonth)," ",getmonthEndDay(endMonth,endYear),", ",endYear,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  #   apx_doc <- addParagraph(apx_doc,paste("Assessment Period:\nfrom ",getMonthCharacter(startMonth)," 1, ",startYear," - ",getMonthCharacter(endMonth)," ",getmonthEndDay(endMonth,endYear),", ",endYear,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  #   apx_doc2 <- addParagraph(apx_doc2,paste("Assessment Period:\nfrom ",getMonthCharacter(startMonth)," 1, ",startYear," - ",getMonthCharacter(endMonth)," ",getmonthEndDay(endMonth,endYear),", ",endYear,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-  # }
-  # 
-  # printYear <- "YEAR"
-  # if(startYear == endYear)
-  # {
-  #   printYear <- startYear
-  # }else
-  # {
-  #   printYear <- paste(startYear,"-",endYear,sep="")
-  # }
-  # doc <- addParagraph(doc, paste("\n\nGenerated on: ",months(Sys.Date()),format.Date(Sys.Date()," %d, %Y "),format(Sys.time(),"%H:%M:%S"),sep=""), par.properties = parProperties(text.align = "center"))
-  # doc <- addPageBreak(doc)
-  # 
-  # apx_doc <- addParagraph(apx_doc, paste("\n\nGenerated on: ",months(Sys.Date()),format.Date(Sys.Date()," %d, %Y "),format(Sys.time(),"%H:%M:%S"),sep=""), par.properties = parProperties(text.align = "center"))
-  # apx_doc <- addPageBreak(apx_doc)
-  # apx_doc2 <- addParagraph(apx_doc2, paste("\n\nGenerated on: ",months(Sys.Date()),format.Date(Sys.Date()," %d, %Y "),format(Sys.time(),"%H:%M:%S"),sep=""), par.properties = parProperties(text.align = "center"))
-  # apx_doc2 <- addPageBreak(apx_doc2)
-  # 
-  # options( "ReporteRs-fontsize" = 12 )
-  # 
-  # # Add  a table
-  # doc <- addSection(doc, landscape = TRUE)
-  # apx_doc <- addSection(apx_doc, landscape = TRUE)
-  # apx_doc2 <- addSection(apx_doc2, landscape = TRUE)
+  #tableOfContents <- 
+  doc <- addParagraph(doc,"Outline of Results			Report Table #",8)
+  doc <- addParagraph(doc,"")
+  doc <- addParagraph(doc,"Tier 1",8)
+  doc <- addParagraph(doc,"Section 1:	Annual time-scale: All stations		\t\t4,5 & 6",8)
+  doc <- addParagraph(doc,"")
+  doc <- addParagraph(doc,"Section 2: 	Annual, seasonal, monthly, and weekly time-scales: by station",8)
+  doc <- addParagraph(doc,"\tStation 1 - annual    \t\t\t\t\t\t7",8)
+  doc <- addParagraph(doc,"\tStation 1 - seasonal    \t\t\t\t\t\t8",8)
+  doc <- addParagraph(doc,"\tStation 1 - monthly",8)
+  doc <- addParagraph(doc,"\t\tMean(+/- STD)	\t\t\t\t9",8)
+  doc <- addParagraph(doc,"\t\t90/95  Percentile	\t\t\t\t10",8)
+  doc <- addParagraph(doc,"\t\tRange (min- Max)	\t\t\t\t11",8)
+  doc <- addParagraph(doc,"\tStation 1 - weekly	  \t\t\t\t\t12",8)
+  doc <- addParagraph(doc,"\tStation 2 - annual  	\t\t\t\t\t13",8)
+  doc <- addParagraph(doc,"\tStation 2 - seasonal  	\t\t\t\t\t14",8)
+  doc <- addParagraph(doc,"\tStation 2 - monthly",8)
+  doc <- addParagraph(doc,"\t\tMean(+/- STD)	\t\t\t\t15",8)
+  doc <- addParagraph(doc,"\t\t90/95  Percentile	\t\t\t\t16",8)
   
-  #apx_doc <- addTitle(apx_doc, paste(filename,".",f,".",g," - ",getPeriod(period[g])," Statistics for ",getSiteName(site_id[f],""),sep=""), level=2)
+  doc <- addParagraph(doc,"\t\tRange (min- Max)	\t\t\t\t17",8)
+  doc <- addParagraph(doc,"\tStation 2 - weekly	  \t\t\t\t\t18",8)
+  doc <- addParagraph(doc,"\tStation 3 - annual  	\t\t\t\t\t19",8)
+  doc <- addParagraph(doc,"\tStation 3- seasonal	  \t\t\t\t\t20",8)
+  doc <- addParagraph(doc,"\tStation 3 - monthly",8)
+  doc <- addParagraph(doc,"\t\tMean(+/- STD)	\t\t\t\t21",8)
+  doc <- addParagraph(doc,"\t\t90/95  Percentile	\t\t\t\t22",8)
+  doc <- addParagraph(doc,"\t\tRange (min- Max)	\t\t\t\t23",8)
+  doc <- addParagraph(doc,"\tStation 3 - weekly  	\t\t\t\t\t24",8)
+  doc <- addParagraph(doc,"\tStation 4.	\t\t\t\t\t\t\t25,26,27,28,29,30",8)
+  doc <- addParagraph(doc,"\tStation 5.	\t\t\t\t\t\t\t30,31,32,33,34,35",8)
+  doc <- addParagraph(doc,"\tStation 6.	\t\t\t\t\t\t\t36,37,38,39,40,41",8)
+  doc <- addParagraph(doc,"")
+  doc <- addParagraph(doc,"Tier 2",8)
+  doc <- addParagraph(doc,"\tStation 1	  	\t\t\t\t\t42",8)
+  doc <- addParagraph(doc,"\tStation 2	  	\t\t\t\t\t43",8)
+  doc <- addParagraph(doc,"\tStation 3	  	\t\t\t\t\t44	45",8)
+  doc <- addParagraph(doc,"\tStation 4.	  	\t\t\t\t\t46",8)
+  doc <- addParagraph(doc,"\tStation 5.	  	\t\t\t\t\t47	48",8)
+  doc <- addParagraph(doc,"\tStation 6.	  	\t\t\t\t\t49	50",8)
+  doc <- addParagraph(doc,"All stations Annual, Seasonal, Monthly 90/95 Percentile Exceedance Summary	51",8)
   
-  tableOfContents <- 
-  "Outline of Results			Report Table #
-
-  Tier 1
-  Section 1:	Annual time-scale: All stations		\t\t4,5 & 6
-
-  Section 2: 	Annual, seasonal, monthly, and weekly time-scales: by station
-  \tStation 1 - annual    \t\t\t\t\t\t7
-  \tStation 1 - seasonal    \t\t\t\t\t\t8
-  \tStation 1 - monthly
-  \t\tMean(+/- STD)	\t\t\t\t9
-  \t\t90/95  Percentile	\t\t\t\t10
-  \t\tRange (min- Max)	\t\t\t\t11
-  \tStation 1 - weekly	  \t\t\t\t\t12
-  \tStation 2 - annual  	\t\t\t\t\t13
-  \tStation 2 - seasonal  	\t\t\t\t\t14
-  \tStation 2 - monthly
-  \t\tMean(+/- STD)	\t\t\t\t15
-  \t\t90/95  Percentile	\t\t\t\t16
-  \t\tRange (min- Max)	\t\t\t\t17
-  \tStation 2 - weekly	  \t\t\t\t\t18
-  \tStation 3 - annual  	\t\t\t\t\t19
-  \tStation 3- seasonal	  \t\t\t\t\t20
-  \tStation 3 - monthly
-  \t\tMean(+/- STD)	\t\t\t\t21
-  \t\t90/95  Percentile	\t\t\t\t22
-  \t\tRange (min- Max)	\t\t\t\t23
-  \tStation 3 - weekly  	\t\t\t\t\t24
-  \tStation 4.	\t\t\t\t\t\t\t25,26,27,28,29,30
-  \tStation 5.	\t\t\t\t\t\t\t30,31,32,33,34,35
-  \tStation 6.	\t\t\t\t\t\t\t36,37,38,39,40,41
-
-  Tier 2
-  \tStation 1	  	\t\t\t\t\t42
-  \tStation 2	  	\t\t\t\t\t43
-  \tStation 3	  	\t\t\t\t\t44	45
-  \tStation 4.	  	\t\t\t\t\t46
-  \tStation 5.	  	\t\t\t\t\t47	48
-  \tStation 6.	  	\t\t\t\t\t49	50
-  All stations Annual, Seasonal, Monthly 90/95 Percentile Exceedance Summary	51"
+  #options( "ReporteRs-fontsize" = 8 )
+  #ooc <- addParagraph(doc,tableOfContents)
+  #ooc <- addPageBreak(doc)
   
-  options( "ReporteRs-fontsize" = 8 )
-  doc <- addParagraph(doc,tableOfContents)
+  #doc <- addParagraph(doc, tableOfContents, font_size=8)
+  #doc <- addParagraph(doc,"")
   doc <- addPageBreak(doc)
-  options( "ReporteRs-fontsize" = 12 )
+  #options( "ReporteRs-fontsize" = 12 )
   
   #Tier 1
   section1 <- c(1,5.1) #once.
@@ -1390,7 +1577,6 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
     {
       tableLngth <- length(tablesList)
       
-      
       ### Report Populate. ###
       if(ReportWrite)
       {
@@ -1399,8 +1585,12 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
         
         #Section 1.
         print("Creating Docx Section 1.")
-        doc <- addParagraph(doc,pot("Tier 1",textProperties(font.weight='bold', font.size = 18)))
-        doc <- addParagraph(doc,pot("Section 1: Summary Statistics of All stations",textProperties(font.weight='bold', font.size = 16)))
+        #ooc <- addParagraph(doc,pot("Tier 1",textProperties(font.weight='bold', font.size = 18)))
+        #ooc <- addParagraph(doc,pot("Section 1: Summary Statistics of All stations",textProperties(font.weight='bold', font.size = 16)))
+        
+        doc <- addParagraph(doc, "Tier 1", 18, TRUE)
+        doc <- addParagraph(doc, "Section 1: Summary Statistics of All stations", 16, TRUE)
+        
         for(i in 1:(length(section1)))
         {
           if(section1[i] <= tableLngth)
@@ -1414,13 +1604,21 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
         
         #Section 2.
         print("Creating Docx Section 2.")
-        doc <- addParagraph(doc,pot("Section 2: Annual, seasonal, monthly, and weekly time-scales by station",textProperties(font.weight='bold', font.size = 16)))
+        #ooc <- addParagraph(doc,pot("Section 2: Annual, seasonal, monthly, and weekly time-scales by station",textProperties(font.weight='bold', font.size = 16)))
         
-        for(h in 1:(length(site_id)))# num of sites
+        doc <- addParagraph(doc, "Section 2: Annual, seasonal, monthly, and weekly time-scales by station", 16, TRUE)
+        
+        sec_2_site_length <- length(site_id)
+        for(h in 1:(sec_2_site_length))# num of sites
         {
+          print(paste("site ",h," of ",sec_2_site_length,sep=""))
+          
           for(i in 1:(length(section2)))#periods
           {
-            doc <- addParagraph(doc,pot(paste("Station ",h," - ",getPeriod(p_order[i])),textProperties(font.weight='bold', font.size = 14)))
+            #ooc <- addParagraph(doc,pot(paste("Station ",h," - ",getPeriod(p_order[i])),textProperties(font.weight='bold', font.size = 14)))
+            
+            doc <- addParagraph(doc, paste("Station ",h," - ",getPeriod(p_order[i])), 14, TRUE)
+            
             #Add Boxplot
             b_names <- GetPlotImageNames('bplot',site_id[h],paste("P",p_order[i],sep=""))
             if(length(b_names) != 0)
@@ -1428,7 +1626,7 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
               doc <- AddPlotImagesToWordDoc(doc,b_names,8,5,p_order[i],"Boxplot",getSiteName(site_id[h]),f_counter)
               f_counter <- f_counter + length(b_names)
             }
-            
+
             #Add CumFreqs.
             if(p_order[i] != 1)
             {
@@ -1436,11 +1634,10 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
               if(length(c_names) != 0)
               {
                 doc <- AddPlotImagesToWordDoc(doc,c_names,6,4,p_order[i],"Cum Freq",getSiteName(site_id[h]),f_counter)
-                #doc <- AddPlotImagesToWordDoc(doc,c_names,6,4,paste(getPeriod(p_order[i])," Cum Freq - ",getSiteName(site_id[h])," - F",sep=""),f_counter)
                 f_counter <- f_counter + length(c_names)
               }
             }
-            
+
             #Add 7DayMovAvg Plots.
             if(p_order[i] == 1)
             {
@@ -1448,7 +1645,6 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
               if(length(ma_names) != 0)
               {
                 doc <- AddPlotImagesToWordDoc(doc,ma_names,9,5,p_order[i],"Moving Average Assessment Year Salinity",getSiteName(site_id[h]),f_counter)
-                #doc <- AddPlotImagesToWordDoc(doc,ma_names,9,5,paste(getPeriod(p_order[i]),"Moving Average Assessment Year Salinity - ",getSiteName(site_id[h])," - F - F",sep=""),f_counter)
                 f_counter <- f_counter + length(ma_names)
               }
             }
@@ -1456,7 +1652,7 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
             #AddTable.
             if(section2[i] <= tableLngth)
             {
-              paste(getPeriod(i)," - T",t_counter,sep="")
+              #print(paste(getPeriod(i)," - T",t_counter,sep=""))
               doc_counter_list <- ReturnDocxTable(doc,tablesList,section2[i],assessment,"Report",paste("Station ",h,sep=""),t_counter)
               doc <- doc_counter_list[[1]]
               t_counter <- doc_counter_list[[2]]
@@ -1464,9 +1660,12 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
           }
         }
         
-        print("Tier 2.")
-        doc <- addParagraph(doc,pot("Tier 2",textProperties(font.weight='bold', font.size = 18)))
-        doc <- addParagraph(doc,pot("SAV Frequency of salinity Stress",textProperties(font.weight='bold', font.size = 16)))
+        #print("Tier 2.")
+        #ooc <- addParagraph(doc,pot("Tier 2",textProperties(font.weight='bold', font.size = 18)))
+        #ooc <- addParagraph(doc,pot("SAV Frequency of salinity Stress",textProperties(font.weight='bold', font.size = 16)))
+        
+        #doc <- addParagraph(doc,"Tier 2", 18, TRUE)
+        #doc <- addParagraph(doc,"SAV Frequency of salinity Stress", 16, TRUE)
         
         # for(i in 1:(length(stressTableList)))
         # {
@@ -1474,23 +1673,32 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
         #   t_counter <- t_counter + 1
         #   #salinityStressTable(a_dv, b_dv, m_dv, paste(tableNames[j]," [Daily Value]",sep=""),site_id[f],db, c(filename,f,period[g],tb))
         #   #salinityStressTable(  df, df_b, df_m, graphName                                   ,site_id   ,db, fLabel){
-        #   options( "ReporteRs-fontsize" = 12 )
+        #   #options( "ReporteRs-fontsize" = 12 )
         #   #my_text <- pot(paste(fLabel[1],".",fLabel[2],".",fLabel[3],".t",as.numeric(fLabel[4])," - ",getPeriod(fLabel[3])," Statistics for ",getSiteName(site_id[i],""),sep=""),textProperties(font.weight='bold', font.size = 12))
         #   #fLabel[4] <- as.numeric(fLabel[4])+1
-        #   doc <- addParagraph(doc, my_text)
-        #   doc <- addParagraph(doc,paste("Extreme Stress Table for: ", "Sal(Cond) [Daily Value]"),par.properties = chprop( parProperties(), text.align = "center" ))
+        #   # ooc <- addParagraph(doc, my_text)
+        #   # ooc <- addParagraph(doc,paste("Extreme Stress Table for: ", "Sal(Cond) [Daily Value]"),par.properties = chprop( parProperties(), text.align = "center" ))
         #   
-        #   doc <- addParagraph(doc,stressTableList[[i]][[2]][1],par.properties = chprop( parProperties() ))
-        #   doc <- addParagraph(doc,stressTableList[[i]][[2]][2],par.properties = chprop( parProperties() ))
-        #   doc <- addFlexTable(doc,stressTableList[[i]][[1]],par.properties=parCenter())
-        #   doc<-addPageBreak(doc)
+        #   # ooc <- addParagraph(doc,stressTableList[[i]][[2]][1],par.properties = chprop( parProperties() ))
+        #   # ooc <- addParagraph(doc,stressTableList[[i]][[2]][2],par.properties = chprop( parProperties() ))
+        #   # ooc <- addFlexTable(doc,stressTableList[[i]][[1]],par.properties=parCenter())
+        #   # ooc<-addPageBreak(doc)
+        #   
+        #   doc <- addParagraph(doc, my_text)
+        #   doc <- addParagraph(doc, paste("Extreme Stress Table for: ", "Sal(Cond) [Daily Value]"), text_align = "center" )
+        #   
+        #   doc <- addParagraph(doc,stressTableList[[i]][[2]][1])
+        #   doc <- addParagraph(doc,stressTableList[[i]][[2]][2])
+        #   doc <- addTable(doc,stressTableList[[i]][[1]])
+        #   doc <- addPageBreak(doc)
         # }
-        
         # Write the Word document to a file
-        doc <- addSection(doc, landscape = FALSE)
+        #ooc <- addSection(doc, landscape = FALSE)
+        doc <- endLandscape(doc)
         wd <- getwd()
         setwd(paste(getwd(),"/Reports",sep=""))
-        writeDoc(doc, file = getFileName("Report",extension))
+        #writeDoc(doc, file = getFileName("Report",extension))
+        print(doc, target=getFileName("Report",extension))
         setwd(wd)
       }
       
@@ -1510,10 +1718,12 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
           a_doc <- CreateWordDocWithGeneratedTitlePage(paste("Generated Appendix (",LETTERS[h],".1) Statistics",sep=""),bl,asse,period[g],paste("Appendix (",LETTERS[h],".1)",sep=""),site_id,c(b_startDate,b_endDate),c(startMonth,startYear,endMonth,endYear),startYear,endYear)
           a_docH <- CreateWordDocWithGeneratedTitlePage(paste("Generated Appendix (",LETTERS[h],".2) Statistics",sep=""),bl,asse,period[g],paste("Appendix (",LETTERS[h],".2)",sep=""),site_id,c(b_startDate,b_endDate),c(startMonth,startYear,endMonth,endYear),startYear,endYear)
           
-          a_doc <- addParagraph(a_doc,pot(paste("Appendix ",LETTERS[h],sep=""),textProperties(font.weight='bold', font.size = 18)))
+          #a_ooc <- addParagraph(a_doc,pot(paste("Appendix ",LETTERS[h],sep=""),textProperties(font.weight='bold', font.size = 18)))
+          a_doc <- addParagraph(a_doc, paste("Appendix ",LETTERS[h],sep=""), 18, TRUE)
           #a_doc <- addParagraph(a_doc,pot("Tier 1",textProperties(font.weight='bold', font.size = 16)))
           
-          a_docH <- addParagraph(a_docH,pot(paste("Appendix ",LETTERS[h],sep=""),textProperties(font.weight='bold', font.size = 18)))
+          #a_docH <- addParagraph(a_docH,pot(paste("Appendix ",LETTERS[h],sep=""),textProperties(font.weight='bold', font.size = 18)))
+          a_docH <- addParagraph(a_docH, paste("Appendix ",LETTERS[h],sep=""), 18, TRUE)
           #a_docH <- addParagraph(a_docH,pot("Tier 1",textProperties(font.weight='bold', font.size = 16)))
           
           #a_doc <- addSection(a_doc, landscape = TRUE)
@@ -1558,12 +1768,19 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
           }
           
           # Write the Word document to a file
-          a_doc <- addSection(a_doc, landscape = FALSE)
-          a_docH <- addSection(a_docH, landscape = FALSE)
+          #a_ooc <- addSection(a_doc, landscape = FALSE)
+          #a_oocH <- addSection(a_docH, landscape = FALSE)
+          
+          a_doc <- endLandscape(a_doc)
+          a_docH <- endLandscape(a_docH)
+          
           wd <- getwd()
           setwd(paste(getwd(),"/Reports",sep=""))
-          writeDoc(a_doc, file = getFileName(paste("Appendix ",LETTERS[h],".1",sep=""),extension))
-          writeDoc(a_docH, file = getFileName(paste("Appendix ",LETTERS[h],".2",sep=""),extension))
+          #writeDoc(a_doc, file = getFileName(paste("Appendix ",LETTERS[h],".1",sep=""),extension))
+          #writeDoc(a_docH, file = getFileName(paste("Appendix ",LETTERS[h],".2",sep=""),extension))
+          
+          print(a_doc, target=getFileName(paste("Appendix ",LETTERS[h],".1",sep=""),extension))
+          print(a_docH, target=getFileName(paste("Appendix ",LETTERS[h],".2",sep=""),extension))
           setwd(wd)
         }
       }
@@ -1596,24 +1813,6 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
   })
 }
 
-# AddPlotImagesToAppendixWordDoc<-function(doc,img,w=9,h=6,period,plotName,site_name,cnt,typ){
-#   
-#   if(length(img) != 0)
-#   {
-#     for(i in 1:(length(img)))
-#     {
-#       #name <- gsub(paste(getwd(),"/temp/",sep=""),'',img[i],fixed=TRUE)
-#       #name <- gsub('.jpg','',name,fixed=TRUE)
-#       #doc <- addParagraph(doc,paste(text," - F",cnt+i-1,sep=""))
-#       doc <- addParagraph(doc,paste(GetPlotTitleName(as.character(img[i]),period,plotName,site_name,"Appendix"),cnt+i-1,sep=""))
-#       doc <- addImage(doc, img[i],width=w,height=h)
-#       doc <- addPageBreak(doc)
-#     }
-#   }
-#   
-#   return(doc)
-# }
-
 AddPlotImagesToWordDoc<-function(doc,img,w=9,h=6,period,plotName,site_name,cnt,type="Report"){
   
   if(length(img) != 0)
@@ -1622,8 +1821,12 @@ AddPlotImagesToWordDoc<-function(doc,img,w=9,h=6,period,plotName,site_name,cnt,t
     {
       #name <- gsub(paste(getwd(),"/temp/",sep=""),'',img[i],fixed=TRUE)
       #name <- gsub('.jpg','',name,fixed=TRUE)
-      doc <- addParagraph(doc,paste(GetPlotTitleName(as.character(img[i]),period,plotName,site_name,type),cnt+i-1,sep=""))
-      doc <- addImage(doc, img[i],width=w,height=h)
+      #ooc <- addParagraph(doc,paste(GetPlotTitleName(as.character(img[i]),period,plotName,site_name,type),cnt+i-1,sep=""))
+      #ooc <- addImage(doc, img[i],width=w,height=h)
+      #ooc <- addPageBreak(doc)
+      
+      doc <- addParagraph(doc, paste(GetPlotTitleName(as.character(img[i]),period,plotName,site_name,type),cnt+i-1,sep=""), font_size=12)
+      doc <- addImage(doc, img[i],h=h,w=w)
       doc <- addPageBreak(doc)
     }
   }
@@ -1652,10 +1855,9 @@ GetPlotImageNames<-function(name=NULL,station=NULL,period=NULL,num=NULL){
 }
 
 roundToUSGS<-function(x){
-  
   if(!is.finite(x))
   {
-    if(grepl("?",x))
+    if(grepl("±",x))
     {
       x <- unlist(regmatches(x,gregexpr("[[:digit:]]+\\.*[[:digit:]]*",x)))
       return(paste(x[1]))
@@ -1712,7 +1914,7 @@ Tier1_Weekly_ByWeek_Appendix<-function(tList,sites,periods,asy,bl,col_names){
             avg_nums1 <- (mean(nums1[is.finite(nums1)]))
             avg_nums2 <- (mean(nums2[is.finite(nums2)]))
             
-            avgOfAvg <- paste(avg_nums1," (?",avg_nums2,")",sep="")
+            avgOfAvg <- paste(avg_nums1," (±",avg_nums2,")",sep="")
             
             v1 <- nums1 > avg_nums1
             v2 <- nums2 > avg_nums2
@@ -1779,7 +1981,7 @@ Tier1_Weekly_ByWeek_Appendix<-function(tList,sites,periods,asy,bl,col_names){
               avg_nums1 <- (mean(nums1[is.finite(nums1)]))
               avg_nums2 <- (mean(nums2[is.finite(nums2)]))
               
-              avgOfAvg <- paste(avg_nums1," (?",avg_nums2,")",sep="")
+              avgOfAvg <- paste(avg_nums1," (±",avg_nums2,")",sep="")
               
               v1 <- nums1 > avg_nums1
               v2 <- nums2 > avg_nums2
@@ -1838,7 +2040,7 @@ Tier1_Weekly_ByWeek_Appendix<-function(tList,sites,periods,asy,bl,col_names){
           }
         }
       }
-
+      
       rownames(rdf) <- weeksVector
       names(rdf) <- col_names
       
@@ -1868,7 +2070,7 @@ Tier1_Weekly_ByWeek_Appendix<-function(tList,sites,periods,asy,bl,col_names){
 #Created by KLA 01/15/2020.
 Tier1Weekly_FreqWksOverBaseline<-function(tList,sites,periods,asy,bl,row_names){
   print("Tier1Weekly_FreqWksOverBaseline")
-  table_names <- c("MEAN (?SD)","90th / 95th Percentiles","Range (Min - Max")
+  table_names <- c("MEAN (±SD)","90th / 95th Percentiles","Range (Min - Max")
   namesTable <- c()
   removeRows <- seq(1,52*2,by=2)
   weeksVector <- paste0("Week #",seq(1:52))
@@ -1947,7 +2149,7 @@ Tier1Weekly_FreqWksOverBaseline<-function(tList,sites,periods,asy,bl,row_names){
 #Created by KLA 01/14/2020.
 Tier1_Monthly_ByStation<-function(tList,sites,periods,asy,bl,row_names){
   print("Tier1_Monthly_ByStation")
-  table_names <- c("MEAN (?SD)","90th / 95th Percentiles","Range (Min - Max")
+  table_names <- c("MEAN (±SD)","90th / 95th Percentiles","Range (Min - Max")
   namesTable <- c()
   rListNames <- c()
   listOfVectors = list()
@@ -1993,7 +2195,7 @@ Tier1_Monthly_ByStation<-function(tList,sites,periods,asy,bl,row_names){
     }
   }
   names(listOfVectors) <- namesTable
-  
+
   for(i in 1:(length(sites)))
   {
     Mean_DF <- as.data.frame(do.call(rbind.data.frame, FilterListByStringInName(listOfVectors,c("MEAN",sites[i]))))
@@ -2115,20 +2317,20 @@ Tier1_Seasonal_ByStation<-function(tList,sites,periods,asy,bl,row_names,stn_loc)
         col_names <- colnames(season1r)
         
         report_df <- rbind(rep("",ncol(season1r)),
-                            col_names,          
-                            season1r,
-                            rep("",ncol(season2r)),
-                            rep("",ncol(season2r)),
-                            col_names, 
-                            season2r,
-                            rep("",ncol(season3r)),
-                            rep("",ncol(season3r)),
-                            col_names, 
-                            season3r)
+                           col_names,          
+                           season1r,
+                           rep("",ncol(season2r)),
+                           rep("",ncol(season2r)),
+                           col_names, 
+                           season2r,
+                           rep("",ncol(season3r)),
+                           rep("",ncol(season3r)),
+                           col_names, 
+                           season3r)
         report_df <- cbind(rdf_rownames,report_df)
         rListOfDFs <- list.append(rListOfDFs,report_df)
         rdfV <- c(rdfV,paste("Report-P3-",sites[i],sep=""))
-          
+        
       }else #Even numbers - Appendix.
       {
         season1a <- as.matrix(FilterListByStringInName(listofStns[[i]],c(seasons[1],sites[i]))[[2]],"")
@@ -2138,20 +2340,20 @@ Tier1_Seasonal_ByStation<-function(tList,sites,periods,asy,bl,row_names,stn_loc)
         col_names <- colnames(season1a)
         
         appendix_df <- rbind(##rep("",ncol(season1a)),
-                             col_names,  
-                             season1a,
-                             ##rep("",ncol(season2a)),
-                             ##rep("",ncol(season2a)),
-                             col_names,  
-                             season2a,
-                             ##rep("",ncol(season3a)),
-                             ##rep("",ncol(season3a)),
-                             col_names,  
-                             season3a)
+          col_names,  
+          season1a,
+          ##rep("",ncol(season2a)),
+          ##rep("",ncol(season2a)),
+          col_names,  
+          season2a,
+          ##rep("",ncol(season3a)),
+          ##rep("",ncol(season3a)),
+          col_names,  
+          season3a)
         appendix_df <- cbind(apx_rdf_rownames,appendix_df)
         rListOfDFs <- list.append(rListOfDFs,appendix_df)
         rdfV <- c(rdfV,paste("APPX-P3-",sites[i],sep=""))
-          
+        
       }
     }
     names(rListOfDFs) <- rdfV
@@ -2225,7 +2427,7 @@ Tier1_Annual_ByStation<-function(tList,sites,periods,asy,bl,row_names,stn_loc){
 #Created by KLA on 01/03/2020.
 Tier1_AnnualALLStations<-function(tList,sites,periods,asy,bl,row_names,stn_loc){
   print("Tier1_AnnualALLStations")
-  table_names <- c("MEAN (?SD)","90th / 95th Percentiles","Range (Min - Max)")
+  table_names <- c("MEAN (±SD)","90th / 95th Percentiles","Range (Min - Max)")
   namesTable <- c()
   listOfVectors = list()
   
@@ -2310,18 +2512,15 @@ Tier1_AnnualALLStations<-function(tList,sites,periods,asy,bl,row_names,stn_loc){
 FilterListByStringInName<- function(tList,conditions,rmvConditions=FALSE){
   rList <- list()
   nms <- c()
-  
   x = conditions
   #x = c("-A-", "Y1", site_id[1])
   y = names(tList)
   
-  for(i in 1:(length(x)))
-  {
-    if(!rmvConditions){
-      y = y[grepl(x[i], y,fixed = TRUE)]
-    }else
-    {
-      y = y[!grepl(x[i], y,fixed = TRUE)]
+  for (i in 1:(length(x))) {
+    if (!rmvConditions) {
+      y <- y[grepl(paste0("\\b", x[i], "\\b"), y)]
+    } else {
+      y <- y[!grepl(paste0("\\b", x[i], "\\b"), y)]
     }
   }
   
@@ -2376,7 +2575,7 @@ createStatistics<-function(dfiv,dfdv,startDate,endDate,period,sMonth,sYear,db,si
           mdfdv <- dfdv[week(dfdv$Date) == week,]
           mdfdv <- mdfdv[!is.na(mdfdv$Date),]
           #print(paste(head(mdfdv$Date,n=1)," TO ",tail(mdfdv$Date,n=1),sep=""))
-
+          
           sList <- list.append(sList, runStatistics(mdfiv,mdfdv,paste("Week #",week,sep=""),period,db))
         },error = function(err){
           stop("ERROR: CreateStatistics(). Calculating Weekly Stadistics.")
@@ -2463,7 +2662,7 @@ createStatistics<-function(dfiv,dfdv,startDate,endDate,period,sMonth,sYear,db,si
       #   
       
       #round decimals to two spaces.
-
+      
       #is.num <- sapply(tempDf3, is.numeric)
       #tempDf3[is.num] <- lapply(tempDf3[is.num], round, 2)
       
@@ -2656,7 +2855,7 @@ runStatistics<-function(dfiv,dfdv,periodValue,period,db)
         totalData <- data
         
         data <- RoundSalinityValues(data)
-          
+        
         Stdev <- sd(data,na.rm = TRUE)
         Stdev[!is.finite(Stdev)] <- NA
         
@@ -2693,7 +2892,7 @@ runStatistics<-function(dfiv,dfdv,periodValue,period,db)
         
         ci90 <- ConfInterval(data,0.90)
         ci95 <- ConfInterval(data,0.95)
-          
+        
         ci90Up <- ci90[ciUpper]
         ci90Up[!is.finite(ci90Up)] <- NA
         
@@ -2746,7 +2945,7 @@ runStatistics<-function(dfiv,dfdv,periodValue,period,db)
       #List of Vectors (each vector is a calculated time period).
       rList <- list.append(rList, tempVector)
     }
-
+    
     return(rList)
   },error = function(err) {
     stop("ERROR: runStatistics().")
@@ -2800,7 +2999,7 @@ getFileName<-function(filename, extension)
 {
   tryCatch({
     options(warn=-1)
-    if(file.exists(paste(filename,extension,sep=""),getwd()))
+    if(sum(file.exists(paste(filename,extension,sep=""),getwd())) > 0)
     {
       i <- 1
       while(file.exists(paste(filename," (",as.character(i),')',extension,sep="")))
@@ -3227,31 +3426,6 @@ dateFormat<-function(date,num)
   return(formatDate)
 }
 
-#isLeapYear - Checks if the year is a leap year or not.
-#Created by KLA on 05/04/2018.
-#Last update by KLA on 05/08/2018.
-#Parameters: year (numeric or character).
-#Returns: boolean.
-#Status: tested.
-isLeapYear<-function(year)
-{
-  return (leap_year(year))
-  
-  # if((year %% 4) == 0) {
-  #   if((year %% 100) == 0) {
-  #     if((year %% 400) == 0) {
-  #       return(TRUE)
-  #     } else {
-  #       return(FALSE)
-  #     }
-  #   } else {
-  #     return(TRUE)
-  #   }
-  # } else {
-  #   return(FALSE)
-  # }
-}
-
 #getmonthEndDay - Checks the length of the month in days.
 #Created by KLA on 05/04/2018.
 #Last update by KLA on 05/04/2018.
@@ -3632,11 +3806,11 @@ setPlottingLevels<-function(df,period,append,startDate,abbv=FALSE)
             df$Period <- as.numeric(strftime(df$Date, "%Y"))
             #df$Period <- paste(df$Period-df$offset,"-",df$Period+as.integer(!df$offset),append,sep="")
             df$Period <- paste(substr(as.character(df$Period-df$offset), start = start, stop = 4),
-                                 "-",
-                                 substr(as.character(df$Period+as.integer(!df$offset)), start = 3, stop = 4),append,sep="")
-              
+                               "-",
+                               substr(as.character(df$Period+as.integer(!df$offset)), start = 3, stop = 4),append,sep="")
+            
             #}else{
-              #df$Period <- paste(df$Period-df$offset,"-",substr(as.character(df$Period+as.integer(!df$offset)), start = 3, stop = 4),append,sep="")
+            #df$Period <- paste(df$Period-df$offset,"-",substr(as.character(df$Period+as.integer(!df$offset)), start = 3, stop = 4),append,sep="")
             #}
             
             df$offset <- NULL
@@ -3729,7 +3903,7 @@ DfMean<-function(df,n)
         
         if(i==1)
         {
-          if(sum(!(c("numeric", "POSIXct", "Date") %in% class)) > 0)
+          if(sum((c("POSIXct", "Date") %in% class)) > 0)
           {
             cMean <- as.character(names(sort(table(df[[i]]),decreasing=TRUE)[1]))
             dfdv <- data.frame(tapply(df[[i]], list(df$fDATE), mean,na.rm=TRUE))
@@ -3742,7 +3916,7 @@ DfMean<-function(df,n)
           }
         }else
         {
-          if(sum(!(c("numeric", "POSIXct", "Date") %in% class)) > 0)
+          if(sum((c("POSIXct", "Date") %in% class)) > 0)
           {
             r <- df[[i]]
             cMean <- as.character(names(sort(table(r),decreasing=TRUE)[1]))
@@ -4063,8 +4237,8 @@ getDfPeriods<-function(period,startDate,df,abbv=FALSE)
           while(year <= eYear)
           {
             rVector <- c(rVector,paste(substr(as.character(year-1), start = start, stop = 4),"-",substr(as.character(year), start = 3, stop = 4),"_b",sep=""),
-                          paste(substr(as.character(year-1), start = start, stop = 4),"-",substr(as.character(year), start = 3, stop = 4),"_m",sep=""),
-                          paste(substr(as.character(year-1), start = start, stop = 4),"-",substr(as.character(year), start = 3, stop = 4),sep=""))
+                         paste(substr(as.character(year-1), start = start, stop = 4),"-",substr(as.character(year), start = 3, stop = 4),"_m",sep=""),
+                         paste(substr(as.character(year-1), start = start, stop = 4),"-",substr(as.character(year), start = 3, stop = 4),sep=""))
             
             year <- year + 1
           }
@@ -4125,8 +4299,8 @@ b_boxplotFunc<- function(df,df_b,df_m,df_allYears,period,graphName,site_id,zoom,
       df3 <- setPlottingLevels(df_m,period,"_m",sDate, abbv_year)
       m_yearRange <- range(format.Date(df3$Date, "%Y"),na.rm = TRUE)
       m_yearRange <- paste(substr(as.character(m_yearRange[1]), start = start, stop = 4),
-                         "-",
-                         substr(as.character(m_yearRange[2]), start = start, stop = 4)," (m)",sep="")
+                           "-",
+                           substr(as.character(m_yearRange[2]), start = start, stop = 4)," (m)",sep="")
       df3$Year <- m_yearRange
       df_all <- rbind.data.frame(df_all,df3)
     }
@@ -4217,7 +4391,7 @@ b_boxplotFunc<- function(df,df_b,df_m,df_allYears,period,graphName,site_id,zoom,
       breaks <- c(round(seq(datamin,x1,(x1-datamin)/10),2),round(seq(x1,datamax,(datamax-x1)/6),2))
       
       #boxplot = ggplot(df_all, aes(x=Period, y=VALUE,fill=Year))  + geom_boxplot(outlier.size=1.5, lwd=.9 ,varwidth = FALSE,colour="#000000")+ stat_boxplot(geom = "errorbar", width = 0.5, lwd=.9) + labs(title=paste(getAbbSiteName(site_id),"\nBoxplot for ",graphName," [ZOOM 1:5]",sep=""), x=periodPrint(period), y="Salinity (ppt)")+  stat_summary(fun.y=mean, geom="point", shape=23, size=3.5, color="black", fill="grey")   + scale_y_continuous(breaks=breaks)+theme_light()+theme(plot.title = element_text(hjust=0.5),legend.position="bottom",axis.text.x = element_text(angle=angle))+coord_cartesian(ylim=c(datamin,x1))+ scale_fill_manual(values=colorVector)
-
+      
       boxplot = ggplot(df_all, aes(x=Period, y=VALUE,fill=Year))  + geom_boxplot(outlier.shape = bshape, outlier.size=1.5, lwd=line_width ,varwidth = FALSE,colour="#000000")+ stat_boxplot(geom = "errorbar", width = 0.5, lwd=.9) + labs(fill="Period",title=plotTitle, x=periodPrint(period), y="Salinity (ppt)")+  stat_summary(fun.y=mean, geom="point", shape=23, size=3.5, color="black", fill="grey")   + scale_y_continuous(breaks=breaks)+theme_light()+theme(plot.title = element_text(hjust=0.5),legend.position="bottom",axis.text.x = element_text(angle=angle))+coord_cartesian(ylim=c(datamin,x1))+ scale_fill_manual(values=colorVector)
       
     }else
@@ -4298,34 +4472,12 @@ b_boxplotToDocx<-function(doc,df,df_b,df_m,df_allYears,period,graphName,site_id,
     b <- b_boxplotFunc(df,df_b,df_m,df_allYears,period,graphName,site_id,zoom,sDate)
     if(is.character(b))
     {
-      #doc <- addParagraph(doc,paste("No Boxplot data available for: ",graphName,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
+      
     }else
     {
       imgName <- paste("bplot-",site_id,"-P",fLabel[3],".jpg",sep="")
       ggsave(path="temp",filename=imgName,width=9,height=6,units="in",dpi=150)
-      #ggsave(imgName,width=9,height=6,units="in")
-      #unlink(imgName)
-      
-      # imgName <- paste("bplot",1,".jpg",sep="")
-      # ggsave(imgName,width=9,height=6,units="in")
-      # my_text <- pot(paste(fLabel[1],".",fLabel[2],".",fLabel[3],".f",fLabel[4]," - ",getPeriod(period)," Statistics for ",getSiteName(site_id,""),sep=""),textProperties(font.weight='bold', font.size = 12))
-      # doc <- addParagraph(doc, my_text)
-      # doc <- addImage(doc, imgName,width=9,height=6)
-      # unlink(imgName)
     }
-    
-    #yearRange <- range(format.Date(df$Date,"%Y"))
-    #yearRange <- paste(yearRange[1],"-",yearRange[2],sep="")
-    #doc <- addPlot(doc, fun=function() print(b_boxplotFunc(df,graphName,period,yearRange)), vector.graphic = TRUE,width=6,height=4 )
-    
-    #doc <- addPlot(doc, fun=function() print(boxplotFunc(df,graphName,period)), vector.graphic = TRUE,width=6,height=4 )
-    # tryCatch({
-    # 
-    # },error = function(err) {
-    #   doc <- addParagraph(doc,paste("No data available for: Boxplots. ",graphName,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
-    # }) # END tryCatch
-    
-    #return(doc)
     
   },error = function(err) {
     stop("ERROR: b_boxplotToDocx().")
@@ -4377,7 +4529,7 @@ sevenDayMovingAveragePlot<- function(doc,df,df_b,df_m,period,graphName,site_id,s
     #assessment year
     df <- DfMean(df,1)
     df <- GetDataFrameMovingAverage(df,7,site_id,TRUE,NULL)
-
+    
     df$n <- df$Date
     month(df$n) = month(df$n) + 1
     
@@ -4583,7 +4735,7 @@ sevenDayMovingAveragePlot<- function(doc,df,df_b,df_m,period,graphName,site_id,s
       x_pos_b <- c(0, ceiling(range_days*.11), 
                    ceiling(range_days*.22), ceiling(range_days*.33))
       x_pos_a <- c(ceiling(-range_days*.33), ceiling(-range_days*.22), 
-                         ceiling(-range_days*.11), 0)
+                   ceiling(-range_days*.11), 0)
       
       range_data <- datamax - datamin
       padding_y <- .02 * range_data
@@ -4598,7 +4750,7 @@ sevenDayMovingAveragePlot<- function(doc,df,df_b,df_m,period,graphName,site_id,s
         geom_hline(data=q95, aes(yintercept=grp.mean, color=Year),linetype="twodash") +
         labs(color="Period",title=plotTitle, y="7-Day Moving Avg Salinity (ppt)", x="Day of the Year") +
         theme_light()+theme(plot.title = element_text(hjust=0.5),legend.position = "bottom")
-
+      
       letter1 <- substr(mn[1,1],nchar(as.character(mn[1,1]))-2,nchar(as.character(mn[1,1])))
       letter2 <- substr(mn[2,1],nchar(as.character(mn[2,1]))-2,nchar(as.character(mn[2,1])))
       
@@ -4625,7 +4777,7 @@ sevenDayMovingAveragePlot<- function(doc,df,df_b,df_m,period,graphName,site_id,s
       imgName <- paste("mplot-",num_i,"-",site_id,"-P",1,".jpg",sep="")
       ggsave(path="temp",filename=imgName,width=9,height=5,units="in",dpi=150)
     },error = function(err) {
-      #doc <- addParagraph(doc,paste("No data available for: ",pasteInfo,". ",type," for ",graphName,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
+      
     }) # END tryCatch
   }
 }
@@ -4834,12 +4986,12 @@ b_cumFreqOrHistogramToDocx<- function(doc,df,df_b,df_m,period,graphName,site_id,
         increment <- GetIncrementInteger(datamax-datamin)
         breaks <- seq(0,datamax,increment)
         cumfreqplot = ggplot(df_all, aes(x=VALUE,y=n,color=Year)) + geom_point() + scale_color_manual(values = colorVector)  + geom_hline(data = data, aes(yintercept=percentiles),colour="black",linetype = "solid")+ labs(color="Period",title=plotTitle, y="Cumulative Frequency", x="Salinity (ppt)") + scale_x_continuous(breaks=breaks) + scale_y_continuous(breaks = scales::pretty_breaks(n = 10))+theme_light()+theme(plot.title = element_text(hjust=0.5),legend.position = "bottom")
-        
+
         # if(type == "img")
         # {
-        my_text <- pot(paste(fLabel[1],".",fLabel[2],".",fLabel[3],".f",as.numeric(fLabel[4])," - ",getPeriod(period)," Statistics for ",getSiteName(site_id,""),sep=""),textProperties(font.weight='bold', font.size = 12))
+        my_text <- paste(fLabel[1],".",fLabel[2],".",fLabel[3],".f",as.numeric(fLabel[4])," - ",getPeriod(period)," Statistics for ",getSiteName(site_id,""),sep="")
+        #,textProperties(font.weight='bold', font.size = 12))
         fLabel[4] <- as.numeric(fLabel[4])+1
-        #doc <- addParagraph(doc, my_text)
         if(i < 10)
         {
           num_i <- paste('0',i,sep="")
@@ -4850,13 +5002,7 @@ b_cumFreqOrHistogramToDocx<- function(doc,df,df_b,df_m,period,graphName,site_id,
         imgName <- paste("cplot-",num_i,"-",site_id,"-P",fLabel[3],".jpg",sep="")
         
         ggsave(path="temp",filename=imgName,width=6,height=4,units="in",dpi=150)
-        #doc <- addImage(doc, imgName,width=6,height=4)
-        #unlink(imgName)
-        # }else
-        # {
-        #   doc <- addPlot(doc, fun=function() print(cumfreqplot), vector.graphic = TRUE,width=6,height=4)
-        # }
-        # 
+        
         d_table <- data.frame(data[2])
         tNames <- c()
         
@@ -4884,8 +5030,6 @@ b_cumFreqOrHistogramToDocx<- function(doc,df,df_b,df_m,period,graphName,site_id,
         d_table <- setZebraStyle(d_table,odd = '#eeeeee', even = 'white')
         cTableList <- list.append(cTableList,d_table)
         cTableListNames <- c(cTableListNames,paste("cplot-",num_i,"-",site_id,"-P",fLabel[3],".jpg",sep=""))
-        #doc <- addFlexTable(doc,d_table,par.properties=parCenter())
-        #doc<-addPageBreak(doc)
       }
       
       if(substr(type,start=1,stop=nchar(type)-1) == "histogram")
@@ -4952,13 +5096,9 @@ b_cumFreqOrHistogramToDocx<- function(doc,df,df_b,df_m,period,graphName,site_id,
         }
         imgName <- paste("hplot-",num_i,"-",site_id,"-P",fLabel[3],".jpg",sep="")
         ggsave(path="temp",filename=imgName,width=9,height=6,units="in",dpi=150)
-        my_text <- pot(paste(fLabel[1],".",fLabel[2],".",fLabel[3],".f",as.numeric(fLabel[4])," - ",getPeriod(period)," Statistics for ",getSiteName(site_id,""),sep=""),textProperties(font.weight='bold', font.size = 12))
+        my_text <- paste(fLabel[1],".",fLabel[2],".",fLabel[3],".f",as.numeric(fLabel[4])," - ",getPeriod(period)," Statistics for ",getSiteName(site_id,""),sep="")
+        #,textProperties(font.weight='bold', font.size = 12)
         fLabel[4] <- as.numeric(fLabel[4])+1
-        #doc <- addParagraph(doc, my_text)
-        #doc <- addImage(doc, imgName,width=9,height=6)
-        #unlink(imgName)
-        
-        #w/ log(normal d curve)
         
         if(notitle)
         {
@@ -5011,15 +5151,13 @@ b_cumFreqOrHistogramToDocx<- function(doc,df,df_b,df_m,period,graphName,site_id,
         
         imgName <- paste("hplot-",z,i,"L-",site_id,"-P",fLabel[3],".jpg",sep="")
         ggsave(path="temp",filename=imgName,width=9,height=6,units="in",dpi=150)
-        my_text <- pot(paste(fLabel[1],".",fLabel[2],".",fLabel[3],".f",as.numeric(fLabel[4])," - ",getPeriod(period)," Statistics for ",getSiteName(site_id,""),sep=""),textProperties(font.weight='bold', font.size = 12))
+        my_text <- paste(fLabel[1],".",fLabel[2],".",fLabel[3],".f",as.numeric(fLabel[4])," - ",getPeriod(period)," Statistics for ",getSiteName(site_id,""),sep="")
+        #,textProperties(font.weight='bold', font.size = 12)
         fLabel[4] <- as.numeric(fLabel[4])+1
-        #doc <- addParagraph(doc, my_text)
-        #doc <- addImage(doc, imgName,width=9,height=6)
-        #unlink(imgName)
       }
       
     },error = function(err) {
-      #doc <- addParagraph(doc,paste("No data available for: ",pasteInfo,". ",type," for ",graphName,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
+      
     }) # END tryCatch
   }
   if(type == "cumfreq")
@@ -5052,16 +5190,16 @@ createStressColumn<- function(v,type){
           mean(na.omit(subset(v,v < 15 & v >= 10))),
           mean(na.omit(subset(v,v < 10 & v >= 5))),
           mean(na.omit(subset(v,v < 5  & v >=  0))))
-
+  
   mn <- replace(mn, is.nan(mn), 0)
   
   vlen <- length(subset(v,v>=0))
   
   freq <- c( as.numeric(length(subset(v,v>=25))),
-          as.numeric(length(subset(v,25 > v & v >= 15))),
-          as.numeric(length(subset(v,15 > v & v >= 10))),
-          as.numeric(length(subset(v,10 > v & v >=  5))),
-          as.numeric(length(subset(v, 5 > v & v >=  0))))
+             as.numeric(length(subset(v,25 > v & v >= 15))),
+             as.numeric(length(subset(v,15 > v & v >= 10))),
+             as.numeric(length(subset(v,10 > v & v >=  5))),
+             as.numeric(length(subset(v, 5 > v & v >=  0))))
   
   if(type == "assessment")
   {
@@ -5219,7 +5357,7 @@ getStressCellColorCode<- function(r,c){
 
 GetDataFrameMovingAverage<-function(df,ma=7,site_id="",ReadDB=FALSE,col_name=NULL){
   
-  if(sum(!("data.frame" %in% class(df))) > 0)
+  if(class(df) != "data.frame")
   {
     df <- as.data.frame(df)
   }
@@ -5386,7 +5524,7 @@ salinityStressTable<- function(stn,df,df_b,df_m,graphName,site_id,db,fLabel){
       for(i in 1:(length(dfallList)))
       {
         d <- dfallList[[i]]
-        options( "ReporteRs-fontsize" = 7 )
+        #options( "ReporteRs-fontsize" = 7 )
         d_table <- FlexTable(data=d,add.rownames = TRUE,header.columns=FALSE)
         
         for(j in 1:2)
@@ -5477,21 +5615,11 @@ salinityStressTable<- function(stn,df,df_b,df_m,graphName,site_id,db,fLabel){
         returnList <- list.append(returnList,c(paste("Total Baseline samples: ",bl_total_samples,sep=""),paste("Total Assessment Year samples: ",ay_total_samples,sep="")))
         
         return(returnList)
-        #d_table <- setFlexTableWidths(d_table, vc)
-        #d_table <- setZebraStyle(d_table,odd = '#eeeeee', even = 'white')
-        
-        # options( "ReporteRs-fontsize" = 12 )
-        # my_text <- pot(paste(fLabel[1],".",fLabel[2],".",fLabel[3],".t",as.numeric(fLabel[4])," - ",getPeriod(fLabel[3])," Statistics for ",getSiteName(site_id,""),sep=""),textProperties(font.weight='bold', font.size = 12))
-        # fLabel[4] <- as.numeric(fLabel[4])+1
-        # doc <- addParagraph(doc, my_text)
-        # doc <- addParagraph(doc,paste("Extreme Stress Table for: ",graphName),par.properties = chprop( parProperties(), text.align = "center" ))
-        # doc <- addFlexTable(doc,d_table,par.properties=parCenter())
-        # doc<-addPageBreak(doc)
       }
       
     },error = function(err) {
       stop("ERROR: salinityStressTable().")
-      #doc <- addParagraph(doc,paste("No data available for: ",pasteInfo,". ",type," for ",graphName,sep=""),par.properties = chprop( parProperties(), text.align = "center" ))
+      
     }) # END tryCatch
     
   },error = function(err) {
@@ -5581,12 +5709,11 @@ FigureCounter<-function(t,p)
 
 #Created by KLA on 02/04/2020.
 ReturnDocxTable <- function(doc,tablesList,i,asse,filterBy="",site="",t_counter=NA,appx_name="",stn=""){
+  table_title <- ""
   
   tryCatch({
     if(i %in% c(1,2))
     {
-      #doc <- addParagraph(doc, paste(names(tablesList)[i],"\r\n",sep=""))
-      
       if(i == 2 && site != "")
       {
         tablesList[[i]] <- FilterListByStringInName(tablesList[[i]],site)
@@ -5594,38 +5721,34 @@ ReturnDocxTable <- function(doc,tablesList,i,asse,filterBy="",site="",t_counter=
       
       for(j in 1:(length(tablesList[[i]])))#Per table.
       {
-        #tableNames <- c(tableNames,names(listofATables)[i])
-        #my_text <- pot(paste(filename,".",f,".",period[g],".t",tb," - ",getPeriod(period[g])," Statistics for ",getSiteName(site_id[f],""),sep=""),textProperties(font.weight='bold', font.size = 12))
-        #doc <- addParagraph(doc, paste(names(tablesList[[i]])[j],"\r\n",sep=""))
-        doc <- addParagraph(doc, paste("Annual - T",t_counter,sep=""))
+        table_title <- paste("Annual - T",t_counter,sep="")
+        #doc <- addParagraph(doc, table_title)
         t_counter <- t_counter + 1
-        #tb <- tb + 1
-        #doc <- addParagraph(doc, paste("Database: ",db,"      Site: ",site_id[f],"      Observation: ",names(listofATables)[i],"      Year: ",printYear," [Assessment]",sep=""))
-        options( "ReporteRs-fontsize" = 9 )
+        #options( "ReporteRs-fontsize" = 9 )
         
         #tablesList[[i]][[j]] <- DataFrameRoundToUSGS(tablesList[[i]][[j]])
         
         if(i == 1)
         {
-          data <- FlexTable(tablesList[[i]][[j]],header.columns = FALSE)
-          data <- setZebraStyle(data,odd = 'white', even = '#eeeeee')
+          data <- tablesList[[i]][[j]]#,header.columns = FALSE)#flex table
+          #data <- setZebraStyle(data,odd = 'white', even = '#eeeeee')
         }else
         {
-          data <- FlexTable(tablesList[[i]][[j]])
-          data <- setZebraStyle(data,odd = '#eeeeee', even = 'white')
+          data <- tablesList[[i]][[j]]#flex table
+          #data <- setZebraStyle(data,odd = '#eeeeee', even = 'white')
         }
         
         #data <- setFlexTableWidths(data, c(.9,0.7,1.5,.5,.5,.6,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5))
-        doc <- addFlexTable(doc,data,par.properties=parCenter())
-        options( "ReporteRs-fontsize" = 12 )
+        doc <- addTable(doc,data,table_name=names(tablesList[[i]])[j],table_title=table_title)
+        #options( "ReporteRs-fontsize" = 12 )
       }
-      doc<-addPageBreak(doc)
+      doc <- addPageBreak(doc)
     }
     
     if(i %in% c(3,4))
     {
       t_names <- list(T3="Seasonal - T",T4="Monthly - T",T6="Weekly - T")
-      monthly_names <- c("MEAN (?SD)","90th / 95th Percentiles","Range (Min - Max)")
+      monthly_names <- c("MEAN (±SD)","90th / 95th Percentiles","Range (Min - Max)")
       
       if(i == 3)
       {
@@ -5642,8 +5765,6 @@ ReturnDocxTable <- function(doc,tablesList,i,asse,filterBy="",site="",t_counter=
         }
       }
       
-      #doc <- addParagraph(doc, paste(names(tablesList)[i],"\r\n",sep=""))
-      
       if(site != "")
       {
         tablesList[[i]] <- FilterListByStringInName(tablesList[[i]],site)
@@ -5653,55 +5774,53 @@ ReturnDocxTable <- function(doc,tablesList,i,asse,filterBy="",site="",t_counter=
       {
         for(k in 1:(length(tablesList[[i]][[j]])))#Per Tables
         {
-          #tableNames <- c(tableNames,names(listofATables)[i])
-          #my_text <- pot(paste(filename,".",f,".",period[g],".t",tb," - ",getPeriod(period[g])," Statistics for ",getSiteName(site_id[f],""),sep=""),textProperties(font.weight='bold', font.size = 12))
-          #doc <- addParagraph(doc, paste(names(tablesList[[i]])[j],".\r\n",names(tablesList[[i]][[j]])[k],"\r\n",sep=""))
           if(i == 3)
           {
             if(filterBy != "APPX")
             {
               #Report Print.
-              doc <- addParagraph(doc, paste(t_names[paste("T",i,sep="")],t_counter,sep=""))
+              table_title <- paste(t_names[paste("T",i,sep="")],t_counter,sep="")
+              #doc <- addParagraph(doc, table_title)
             }else
             {
               #Appendix Print.
-              doc <- addParagraph(doc, paste(appx_name,t_names[paste("T",i,sep="")],t_counter,sep=""))
+              table_title <- paste(appx_name,t_names[paste("T",i,sep="")],t_counter,sep="")
+              #doc <- addParagraph(doc, table_title)
             }
           }else
           {
             if(filterBy != "APPX")
             {
               #Report Print.
-              doc <- addParagraph(doc, paste(monthly_names[k]," - T",t_counter,sep=""))
+              table_title <- paste(monthly_names[k]," - T",t_counter,sep="")
+              #doc <- addParagraph(doc, table_title)
             }else
             {
               #Appendix Print.
-              doc <- addParagraph(doc, paste(appx_name,monthly_names[k]," - T",t_counter,sep=""))
+              table_title <- paste(appx_name,monthly_names[k]," - T",t_counter,sep="")
+              #doc <- addParagraph(doc, table_title)
             }
           }
           t_counter <- t_counter + 1
-          #tb <- tb + 1
-          #doc <- addParagraph(doc, paste("Database: ",db,"      Site: ",site_id[f],"      Observation: ",names(listofATables)[i],"      Year: ",printYear," [Assessment]",sep=""))
-
-          options("ReporteRs-fontsize" = 9)
+          #options("ReporteRs-fontsize" = 9)
           
           #tablesList[[i]][[j]][[k]] <- DataFrameRoundToUSGS(tablesList[[i]][[j]][[k]])
           if(i == 3)
           {
-            data <- FlexTable(tablesList[[i]][[j]][[k]],add.rownames = FALSE,header.columns=FALSE)
-            data <- setZebraStyle(data,odd = 'white', even = '#eeeeee')
+            data <- tablesList[[i]][[j]][[k]]#,add.rownames = FALSE,header.columns=FALSE)
+            #data <- setZebraStyle(data,odd = 'white', even = '#eeeeee')
           }else
           {
-            data <- FlexTable(tablesList[[i]][[j]][[k]],add.rownames = TRUE)
-            data <- setZebraStyle(data,odd = '#eeeeee', even = 'white')
+            data <- tablesList[[i]][[j]][[k]]#,add.rownames = TRUE)#flex table
+            #data <- setZebraStyle(data,odd = '#eeeeee', even = 'white')
           }
-
+          
           #data <- setFlexTableWidths(data, c(.9,0.7,1.5,.5,.5,.6,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5))
-          doc <- addFlexTable(doc,data,par.properties=parCenter())
-          options( "ReporteRs-fontsize" = 12 )
+          doc <- addTable(doc, data, table_name=names(tablesList[[i]][[j]])[k],table_title=table_title)
+          #options( "ReporteRs-fontsize" = 12 )
         }
       }
-      doc<-addPageBreak(doc)
+      doc <- addPageBreak(doc)
     }
     
     if(floor(i) == 5)
@@ -5710,25 +5829,21 @@ ReturnDocxTable <- function(doc,tablesList,i,asse,filterBy="",site="",t_counter=
                       T5.2="Assessment Year - Weekly (7-day moving average) Statistics - T")
       
       n <- 5
-      #doc <- addParagraph(doc, paste(names(tablesList)[n],"\r\n",sep=""))
+      
       for(j in 1:(length(tablesList[[n]])))#Per Tables
       {
         if(i == 5.1 && j == 1)
         {
-          #tableNames <- c(tableNames,names(listofATables)[i])
-          #my_text <- pot(paste(filename,".",f,".",period[g],".t",tb," - ",getPeriod(period[g])," Statistics for ",getSiteName(site_id[f],""),sep=""),textProperties(font.weight='bold', font.size = 12))
-          #doc <- addParagraph(doc, paste(names(tablesList[[n]])[j],"\r\n",sep=""))
-          doc <- addParagraph(doc, paste(t_names[paste("T",i,sep="")],t_counter,sep=""))
+          table_title <- paste(t_names[paste("T",i,sep="")],t_counter,sep="")
+          #doc <- addParagraph(doc, table_title)
           t_counter <- t_counter + 1
-          #tb <- tb + 1
-          #doc <- addParagraph(doc, paste("Database: ",db,"      Site: ",site_id[f],"      Observation: ",names(listofATables)[i],"      Year: ",printYear," [Assessment]",sep=""))
-          options( "ReporteRs-fontsize" = 9 )
+          #options( "ReporteRs-fontsize" = 9 )
           #tablesList[[n]][[j]] <- DataFrameRoundToUSGS(tablesList[[n]][[j]])
-          data <- light.table(tablesList[[n]][[j]],add.rownames = TRUE)
-          data <- setZebraStyle(data,odd = '#eeeeee', even = 'white')
+          data <- tablesList[[n]][[j]]#,add.rownames = TRUE)#add light table.
+          #data <- setZebraStyle(data,odd = '#eeeeee', even = 'white')
           #data <- setFlexTableWidths(data, c(.9,0.7,1.5,.5,.5,.6,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5))
-          doc <- addFlexTable(doc,data,par.properties=parCenter())
-          options( "ReporteRs-fontsize" = 12 )
+          doc <- addTable(doc, data, table_name=names(tablesList[[n]])[j],table_title=table_title)
+          #options( "ReporteRs-fontsize" = 12 )
         }
         
         
@@ -5750,57 +5865,56 @@ ReturnDocxTable <- function(doc,tablesList,i,asse,filterBy="",site="",t_counter=
             
             for(l in 1:(length(tablesList[[n]][[j]][[k]])))#Per table
             {
-              #tableNames <- c(tableNames,names(listofATables)[i])
-              #my_text <- pot(paste(filename,".",f,".",period[g],".t",tb," - ",getPeriod(period[g])," Statistics for ",getSiteName(site_id[f],""),sep=""),textProperties(font.weight='bold', font.size = 12))
-              #doc <- addParagraph(doc, paste(names(tablesList[[n]][[j]])[k],".\r\n",names(tablesList[[n]][[j]][[k]])[l],"\r\n",sep=""))
-              doc <- addParagraph(doc, paste(t_names[paste("T",i,sep="")],t_counter,sep=""))
+              table_title <- paste(t_names[paste("T",i,sep="")],t_counter,sep="")
+              #doc <- addParagraph(doc, table_title)
               t_counter <- t_counter + 1
-              #tb <- tb + 1
-              #doc <- addParagraph(doc, paste("Database: ",db,"      Site: ",site_id[f],"      Observation: ",names(listofATables)[i],"      Year: ",printYear," [Assessment]",sep=""))
-              options( "ReporteRs-fontsize" = 9 )
+              #options( "ReporteRs-fontsize" = 9 )
               #tablesList[[n]][[j]][[k]][[l]] <- DataFrameRoundToUSGS(tablesList[[n]][[j]][[k]][[l]])
-              data <- light.table(tablesList[[n]][[j]][[k]][[l]],add.rownames = TRUE)
-              data <- setZebraStyle(data,odd = '#eeeeee', even = 'white')
+              data <- tablesList[[n]][[j]][[k]][[l]]#,add.rownames = TRUE)#add light table.
+              #data <- setZebraStyle(data,odd = '#eeeeee', even = 'white')
               #data <- setFlexTableWidths(data, c(.9,0.7,1.5,.5,.5,.6,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5))
-              doc <- addFlexTable(doc,data,par.properties=parCenter())
-              options( "ReporteRs-fontsize" = 12 )
+              doc <- addTable(doc, data, table_name=names(tablesList[[n]][[j]][[k]])[l],table_title=table_title)
+              #options( "ReporteRs-fontsize" = 12 )
             }
           }
         }
       }
-      doc<-addPageBreak(doc)
+      doc <- addPageBreak(doc)
     }
     
     if(i == 6)
     {
       t_names <- list(T3="Seasonal - T",T4="Monthly - T",T6="Weekly - T")
-      monthly_names <- c("MEAN (?SD)","90th / 95th Percentiles","Range (Min - Max)")
+      monthly_names <- c("MEAN (±SD)","90th / 95th Percentiles","Range (Min - Max)")
       
       for(k in 1:(length(tablesList[[i]][[site]])))#Per Tables
       {
         if(filterBy != "APPX")
         {
           #Report Print.
-          doc <- addParagraph(doc, paste(monthly_names[k]," - T",t_counter,sep=""))
+          table_title <- paste(monthly_names[k]," - T",t_counter,sep="")
+          #doc <- addParagraph(doc, table_title)
         }else
         {
           #Appendix Print.
-          doc <- addParagraph(doc, paste(appx_name,monthly_names[k]," - T",t_counter,sep=""))
+          table_title <- paste(appx_name,monthly_names[k]," - T",t_counter,sep="")
+          #doc <- addParagraph(doc, table_title)
         }
-          
+        
         t_counter <- t_counter + 1
-        options("ReporteRs-fontsize" = 9)
-        data <- FlexTable(tablesList[[i]][[site]][[k]],add.rownames = TRUE)
-        data <- setZebraStyle(data,odd = '#eeeeee', even = 'white')
-        doc <- addFlexTable(doc,data,par.properties=parCenter())
-        options( "ReporteRs-fontsize" = 12 )
+        #options("ReporteRs-fontsize" = 9)
+        data <- tablesList[[i]][[site]][[k]]#,add.rownames = TRUE)#flex table
+        #data <- setZebraStyle(data,odd = '#eeeeee', even = 'white')
+        doc <- addTable(doc, data, table_name=names(tablesList[[i]][[site]])[k],table_title=table_title)
+        #options( "ReporteRs-fontsize" = 12 )
       }
       
-      doc<-addPageBreak(doc)
+      doc <- addPageBreak(doc)
     }
     return(list(doc,t_counter))
     
   },error = function(err){
+    #print(paste(table_title,sep=""))
     stop(paste("WARNING: ReturnDocxTable(). Site ",site,".",sep=""))
   })
 }

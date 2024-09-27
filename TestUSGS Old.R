@@ -4,8 +4,8 @@ require("dataRetrieval")
 require("bit64")
 require("Rmisc")
 require("xlsx")
-require("officer")
-require("flextable")
+require("ReporteRs")
+#require("flextable")
 require("ggplot2")
 require("DBI")
 require("rlist")
@@ -17,7 +17,7 @@ require("lubridate")
 require("zoo")
 require("miscTools")
 require("DescTools")
-source("JaxHarborChartNew.R", encoding="utf-8")
+source("JaxHarborChart.R", encoding="utf-8")
 source("DatabasePopulate.R",keep.source = TRUE)
 #ClearTempFolder()
 # require("officer")
@@ -26,39 +26,19 @@ source("DatabasePopulate.R",keep.source = TRUE)
 # require("flextable")
 # require("mschart")
 
-siteList <- c(
-              "302309081333001",#,#Tier 1 Statistics
-             "02246500",
-             "301124081395901",###big baseline
-             "02245340",
-             "02246518",
-             "301204081434900",
-             "02245290", #Tier 2 Statistics
-             "02246459",
-             "02246751",
-             "02246804",
-             "022462002",
-             "294213081345300",
-             "300803081354500",
-             "301510081383500",
-             "301817081393600",
-             "302609081453300",
-             "302657081312400"
-              )
+siteList <- #c("302309081333001")
+              #"02246500",
+              #c("301124081395901")#,###big baseline
+              c("02245340")#,
+              #"02246518",
+              #"301204081434900")
 
-#Discarted:
-#  "02246160"
-#  "02246621"
-#  "02246825"
-
-assessment_years <- c(
-  "2017-12-01","2018-12-01","2019-12-01","2020-12-01", "2021-12-01",
-  "2022-12-01")
+assessment_years <- c("2017-12-01","2018-12-01","2019-12-01","2020-12-01")
 baseline_year <- c("2008-01-01","2017-11-30")
 
 GenerateYearStatisticsDocx(filename="Report",site_id=siteList,assessment=assessment_years,baseline=baseline_year)
 
-#download_assessment_years <- c("2017-12-01","2018-12-01","2019-12-01","2020-12-01", "2021-12-01", "2022-12-01")
+#download_assessment_years <- c("2017-12-01","2018-12-01","2019-12-01","2020-12-01")
 #download_baseline_year <- c("2008-01-01","2017-11-30")
 
 #DownloadAndPopulateDatabase(site_id=siteList,assessment=download_assessment_years,baseline=download_baseline_year)
