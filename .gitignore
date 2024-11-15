@@ -17,4 +17,3 @@ database/*
 !Reports/.gitkeep
 !database/.gitkeep
 /sjr files
-/documents

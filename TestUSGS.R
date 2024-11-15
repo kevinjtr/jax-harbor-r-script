@@ -19,7 +19,7 @@ require("miscTools")
 require("DescTools")
 source("JaxHarborChartNew.R", encoding="utf-8")
 source("DatabasePopulate.R",keep.source = TRUE)
-#ClearTempFolder()
+ClearTempFolder()
 # require("officer")
 # require("flextable")
 # require("rvg")
@@ -27,24 +27,25 @@ source("DatabasePopulate.R",keep.source = TRUE)
 # require("mschart")
 
 siteList <- c(
-              "302309081333001",#,#Tier 1 Statistics
-             "02246500",
-             "301124081395901",###big baseline
-             "02245340",
-             "02246518",
-             "301204081434900",
-             "02245290", #Tier 2 Statistics
-             "02246459",
-             "02246751",
-             "02246804",
-             "022462002",
-             "294213081345300",
-             "300803081354500",
-             "301510081383500",
-             "301817081393600",
-             "302609081453300",
-             "302657081312400"
-              )
+              "302309081333001",#Lvl1
+             # "02246500",#Lvl1
+             # "301817081393600",#Lvl2
+              #"301510081383500",#Lvl2
+             # "301124081395901",#Lvl1 ###big baseline
+              #"02245340",#Lvl1
+             # "02245290",#Lvl2
+             # "294213081345300",#Lvl2
+             #-----------------------------------------
+             # "302657081312400"#Lvl2
+              #"02246804",#Lvl2
+             # "02246751",#Lvl2
+              #"302609081453300",#Lvl2
+             # "02246518",#Lvl1
+               "02246459"#Lvl2
+             # "301204081434900",#Lvl1
+              #"300803081354500"#Lvl2
+             # "022462002"#Lvl2
+            )
 
 #Discarted:
 #  "02246160"

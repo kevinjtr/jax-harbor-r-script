@@ -64,6 +64,7 @@ addTable <- function(doc, tbl, col.keys=NULL, col.digits=NULL,add_row_names=FALS
     # Handle cases with switch
     result <- switch(x,
                      "AnnualAllStations" = FALSE,
+                     "SiteTable" = FALSE,
                      # Default case, can handle pattern matching here
                      {
                        if(grepl("^Station \\d+", x) || grepl("^Report-P3-\\d+", x) || grepl("^APPX-P3-\\d+", x)){
@@ -159,6 +160,9 @@ addTable <- function(doc, tbl, col.keys=NULL, col.digits=NULL,add_row_names=FALS
           filData <- cbind.data.frame(data[,1], filData)
         }
       }
+      
+      # Replace NA values with the string "NA"
+      filData[is.na(filData)] <- "NA"
       
       # Create a flextable object from the modified filData frame
       ft <- flextable(filData) %>% 
@@ -298,7 +302,7 @@ addTableOld=function(doc, tbl, col.keys=NULL, col.digits=NULL){
 
 ########################### FILE CREATION ##################################
 
-CreateWordDocWithGeneratedTitlePage<-function(title,bl,asse,p,filename,site_id,b,a,startYear,endYear){
+CreateWordDocWithGeneratedTitlePage<-function(title,bl,asse,p,filename,site_id,b,a,startYear,endYear,continue_in_landscape=TRUE){
   
   extension <- ".docx"
   
@@ -348,7 +352,11 @@ CreateWordDocWithGeneratedTitlePage<-function(title,bl,asse,p,filename,site_id,b
   
   # Add  a table
   #doc <- addSection(doc, landscape = TRUE)
-  doc <- startLandscape(doc)
+  
+  if(continue_in_landscape){
+    doc <- startLandscape(doc)
+  }
+  
   
   return(doc)
 }
@@ -459,12 +467,12 @@ GetMonthByNumber<-function(n){
   if(is.finite(n))
   {
     m <- monthAddition(n,11)
-    return (month.abb[m])
+    return (month.name[m])
   }else if (grepl("L",n, fixed = TRUE))
   {
     x <- as.integer(unlist(regmatches(n,gregexpr("[[:digit:]]+\\.*",n))))[1]
     m <- monthAddition(x,11)
-    return (paste (month.abb[m]," [Log]",sep=""))
+    return (paste (month.name[m]," [Log]",sep=""))
   }
   
   return("")
@@ -505,6 +513,7 @@ GetSeasonByNumber<-function(n){
 
 GetPlotTitleName<-function(n,period,plotName,site,type="Report"){
   
+  site_name <- getSiteName(site)
   period <- floor(period)
   pn <- GrabPlotNumber(n)
   
@@ -522,17 +531,17 @@ GetPlotTitleName<-function(n,period,plotName,site,type="Report"){
     {
       if(period == 1)
       {
-        return (paste(getPeriod(period)," - ",GetWeekByNumber(pn)," - ",plotName," - ",site," - F",sep=""))
+        return (paste(getPeriod(period)," - ",GetWeekByNumber(pn)," - ",plotName," - ",site_name," - ",site," - F",sep=""))
       }else if (period == 2)
       {
-        return (paste(getPeriod(period)," - ",GetMonthByNumber(pn)," - ",plotName," - ",site," - F",sep=""))
+        return (paste(getPeriod(period)," - ",GetMonthByNumber(pn)," - ",plotName," - ",site_name," - ",site," - F",sep=""))
       }else if (period == 3)
       {
-        return (paste(getPeriod(period)," - ",GetSeasonByNumber(pn)," - ",plotName," - ",site," - F",sep=""))
+        return (paste(getPeriod(period)," - ",GetSeasonByNumber(pn)," - ",plotName," - ",site_name," - ",site," - F",sep=""))
       }
     }
     
-    return(paste(getPeriod(period),pt," - ",plotName," - ",site," - F",sep=""))
+    return(paste(getPeriod(period),pt," - ",plotName," - ",site_name," - ",site," - F",sep=""))
     
   }else
   {
@@ -540,17 +549,17 @@ GetPlotTitleName<-function(n,period,plotName,site,type="Report"){
     {
       if(period == 1)
       {
-        return (paste(plotName," - ",GetWeekByNumber(pn)," - ",site," - F",sep=""))
+        return (paste(plotName," - ",GetWeekByNumber(pn)," - ",site_name," - ",site," - F",sep=""))
       }else if (period == 2)
       {
-        return (paste(plotName," - ",getPeriod(period)," - ",GetMonthByNumber(pn)," - ",site," - F",sep=""))
+        return (paste(plotName," - ",getPeriod(period)," - ",GetMonthByNumber(pn)," - ",site_name," - ",site," - F",sep=""))
       }else if (period == 3)
       {
-        return (paste(plotName," - ",getPeriod(period)," - ",GetSeasonByNumber(pn)," - ",site," - F",sep=""))
+        return (paste(plotName," - ",getPeriod(period)," - ",GetSeasonByNumber(pn)," - ",site_name," - ",site," - F",sep=""))
       }
     }
     
-    return(paste(plotName," - ",getPeriod(period),pt," - ",site," - F",sep=""))
+    return(paste(plotName," - ",getPeriod(period),pt," - ",site_name," - ",site," - F",sep=""))
   }
 }
 
@@ -584,32 +593,29 @@ GrabPlotNumber<-function(x){
   return(substr(result,1,3))
 }
 
-GetIncrementInteger<-function(n){
-  
-  if(n > 30)
-  {
+GetIncrementInteger <- function(n) {
+  if (n > 300) {
+    return(25)      # More ticks for large ranges
+  } else if (n > 100) {
+    return(10)      # High tick density
+  } else if (n > 50) {
+    return(5)       # Moderate density
+  } else if (n > 30) {
     return(4)
-  }else if (n <= 30 && n > 20)
-  {
+  } else if (n > 20) {
     return(3)
-  }else if (n <= 20 && n > 15)
-  {
+  } else if (n > 15) {
     return(2)
-  }else if (n <= 15 && n > 10)
-  {
+  } else if (n > 10) {
     return(1.5)
-  }else if (n <= 10 && n > 5)
-  {
+  } else if (n > 5) {
     return(1)
-  }else if (n <= 5 && n > 3)
-  {
-    return(.5)
-  }else if (n <= 3 && n > 1)
-  {
-    return(.25)
-  }else if (n <= 1 && n > 0)
-  {
-    return(.1)
+  } else if (n > 3) {
+    return(0.5)
+  } else if (n > 1) {
+    return(0.25)
+  } else if (n > 0) {
+    return(0.1)
   }
   
   return(1)
@@ -1406,7 +1412,8 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
               }
               
               ### Cum Freq ###
-              if(i == 2 && length(b_list) != 0 && y == length(assessment) && period[g] == floor(period[g]) && !DISABLE_GRAPH_GENERATE)#Cumulative Frequency
+              if(i == 2 && length(b_list) != 0 && y == length(assessment) && period[g] == floor(period[g]) && !DISABLE_GRAPH_GENERATE
+                 )#Cumulative Frequency
               {
                 print("GENERATING CUM FREQ.")
                 cumfreq_tables <- b_cumFreqOrHistogramToDocx("doc",aList,bList,mList,period[g],tableNames[j],site_id[f],"cumfreq",startDate,c(filename,f,period[g],fg),cumfreq_tables)
@@ -1419,7 +1426,8 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
               
               # ## Histogram ###
               if(i == 3 && length(b_list) != 0 && y == length(assessment) && period[g] == floor(period[g]) && !DISABLE_GRAPH_GENERATE)#Histograms
-              {  print("GENERATING HISTOGRAM.")
+              { 
+                print("GENERATING HISTOGRAM.")
                 #b_cumFreqOrHistogramToDocx(doc,aList,bList,mList,period[g],tableNames[j],"histogram1",startDate)
                 b_cumFreqOrHistogramToDocx("doc",aList,bList,mList,period[g],tableNames[j],site_id[f],"histogram2",startDate,c(filename,f,period[g],fg))
                 fg <- FigureCounter(fg,period[g])
@@ -1441,7 +1449,8 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
               # }
               
               ## Moving Avg Plot ###
-              if(i == 5 && length(b_list) != 0 && y == length(assessment) && period[g] ==  period[length(period)] && !DISABLE_GRAPH_GENERATE)#sevenDayMovingAveragePlot
+              if(i == 5 && length(b_list) != 0 && y == length(assessment) && period[g] ==  period[length(period)] && !DISABLE_GRAPH_GENERATE
+                 )#sevenDayMovingAveragePlot
               {
                 print("GENERATING 7-DAY MOV AVG.")
                 sevenDayMovingAveragePlot("doc",aList,bList,mList,period[g],tableNames[j],site_id[f],startDate,c(filename,f,period[g],fg))
@@ -1485,12 +1494,12 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
   col_names <-  c(bl, paste0("AY",1:(length(assessment))))
   station_locations <- c("TOP","MIDDLE","BOTTOM","NA")[c(length(nmL[grepl("TOP", nmL,fixed = TRUE)]) > 0, length(nmL[grepl("MIDDLE", nmL,fixed = TRUE)]) > 0, length(nmL[grepl("BOTTOM", nmL,fixed = TRUE)]) > 0, length(nmL[grepl("NA", nmL,fixed = TRUE)]) > 0)]
   
-  save.image(file='myEnvironment.RData')
+  save.image(file='myEnvironment1.RData')
   #save(list = c("tempTableList","site_id","period","assessment","bl","col_names","station_locations"),file='data.RData')
-  save(list = ls(), file = "data.RData")
+  save(list = ls(), file = "data1.RData")
   
-  #load(file='myEnvironment.RData')
-  #load(file='data.RData')
+  #load(file='myEnvironment1.RData')
+  #load(file='data1.RData')
   
   aa <- Tier1_AnnualALLStations(tempTableList,site_id,period,assessment,bl,col_names,station_locations)
   
@@ -1510,8 +1519,19 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
   #Create a Word document.
   extension <- ".docx"
   
-  doc <- CreateWordDocWithGeneratedTitlePage("Generated Report Statistics",bl,asse,period[g],filename,site_id,c(b_startDate,b_endDate),c(startMonth,startYear,endMonth,endYear),startYear,endYear)
+  doc <- CreateWordDocWithGeneratedTitlePage("Generated Report Statistics",bl,asse,period[g],filename,site_id,c(b_startDate,b_endDate),c(startMonth,startYear,endMonth,endYear),startYear,endYear,FALSE)
 
+  station_table_data <- data.frame(
+    "Station Number" = seq_along(site_id),
+    "USGS Id" = site_id,
+    "Name" = sapply(site_id, getSiteName)
+  )
+  
+  doc <- addTable(doc, tbl = station_table_data, table_name = "SiteTable", table_title = "Site Information Table")
+  
+  doc <- addPageBreak(doc)
+  doc <- startLandscape(doc)
+  
   #tableOfContents <- 
   doc <- addParagraph(doc,"Outline of Results			Report Table #",8)
   doc <- addParagraph(doc,"")
@@ -1623,17 +1643,18 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
             b_names <- GetPlotImageNames('bplot',site_id[h],paste("P",p_order[i],sep=""))
             if(length(b_names) != 0)
             {
-              doc <- AddPlotImagesToWordDoc(doc,b_names,8,5,p_order[i],"Boxplot",getSiteName(site_id[h]),f_counter)
+              doc <- AddPlotImagesToWordDoc(doc,b_names,8,5,p_order[i],"Boxplot",site_id[h],f_counter)
               f_counter <- f_counter + length(b_names)
             }
 
             #Add CumFreqs.
-            if(p_order[i] != 1)
+            if(p_order[i] == 4)
             {
               c_names <- GetPlotImageNames('cplot',site_id[h],paste("P",p_order[i],sep=""))
+
               if(length(c_names) != 0)
               {
-                doc <- AddPlotImagesToWordDoc(doc,c_names,6,4,p_order[i],"Cum Freq",getSiteName(site_id[h]),f_counter)
+                doc <- AddPlotImagesToWordDoc(doc,c_names,6,4,p_order[i],"Cumulative Frequency",site_id[h],f_counter)
                 f_counter <- f_counter + length(c_names)
               }
             }
@@ -1644,7 +1665,7 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
               ma_names <- GetPlotImageNames('mplot',site_id[h],paste("P",p_order[i],sep=""))
               if(length(ma_names) != 0)
               {
-                doc <- AddPlotImagesToWordDoc(doc,ma_names,9,5,p_order[i],"Moving Average Assessment Year Salinity",getSiteName(site_id[h]),f_counter)
+                doc <- AddPlotImagesToWordDoc(doc,ma_names,9,5,p_order[i],"Moving Average Assessment Year Salinity",site_id[h],f_counter)
                 f_counter <- f_counter + length(ma_names)
               }
             }
@@ -1716,8 +1737,11 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
         for(h in 1:(length(site_id)))# num of sites
         {
           a_doc <- CreateWordDocWithGeneratedTitlePage(paste("Generated Appendix (",LETTERS[h],".1) Statistics",sep=""),bl,asse,period[g],paste("Appendix (",LETTERS[h],".1)",sep=""),site_id,c(b_startDate,b_endDate),c(startMonth,startYear,endMonth,endYear),startYear,endYear)
-          a_docH <- CreateWordDocWithGeneratedTitlePage(paste("Generated Appendix (",LETTERS[h],".2) Statistics",sep=""),bl,asse,period[g],paste("Appendix (",LETTERS[h],".2)",sep=""),site_id,c(b_startDate,b_endDate),c(startMonth,startYear,endMonth,endYear),startYear,endYear)
+          a_docH <- CreateWordDocWithGeneratedTitlePage(paste("Generated Appendix (",LETTERS[h],".2) Statistics",sep=""),bl,asse,period[g],paste("Appendix (",LETTERS[h],".2)",sep=""),site_id,c(b_startDate,b_endDate),c(startMonth,startYear,endMonth,endYear),startYear,endYear,FALSE)
           
+          #a_doc <- startLandscape(a_doc)
+          is_a_doc_landspace = TRUE
+          #print("is_a_doc_landspace is true")
           #a_ooc <- addParagraph(a_doc,pot(paste("Appendix ",LETTERS[h],sep=""),textProperties(font.weight='bold', font.size = 18)))
           a_doc <- addParagraph(a_doc, paste("Appendix ",LETTERS[h],sep=""), 18, TRUE)
           #a_doc <- addParagraph(a_doc,pot("Tier 1",textProperties(font.weight='bold', font.size = 16)))
@@ -1728,51 +1752,125 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
           
           #a_doc <- addSection(a_doc, landscape = TRUE)
           
+          #first_print = TRUE
           for(i in 1:(length(p_order)))#periods
           {
             #a_doc <- addParagraph(a_doc,pot(paste("Station ",h," - ",getPeriod(p_order[i])),textProperties(font.weight='bold', font.size = 14)))
             
-            #Add CumFreqs.
-            if(p_order[i] == 1)
-            {
-              c_names <- GetPlotImageNames('cplot',site_id[h],paste("P",p_order[i],sep=""))
-              if(length(c_names) != 0)
+            if(p_order[i] == 1){
+              #AddCumFreqs.
+              if(p_order[i] != 4)
               {
-                a_doc <- AddPlotImagesToWordDoc(a_doc,c_names,6,4,p_order[i],paste(LETTERS[h]," . ",i," . Cum Freq",sep=""),getSiteName(site_id[h]),f_counter,"Appendix")
-                #a_doc <- AddPlotImagesToAppendixWordDoc(a_doc,c_names,6,4,paste(LETTERS[h],".",i,".F - ",getSiteName(site_id[h]),sep=""),f_counter)
-                f_counter <- f_counter + length(c_names)
+                c_names <- GetPlotImageNames('cplot',site_id[h],paste("P",p_order[i],sep=""))
+                if(length(c_names) != 0)
+                {
+                  if(is_a_doc_landspace){
+                    a_doc <- endLandscape(a_doc)
+                    is_a_doc_landspace <- FALSE
+                    #print("is_a_doc_landspace is false - cplot-p1")
+                  }
+                  a_doc <- AddPlotImagesToWordDoc(a_doc,c_names,6,4,p_order[i],paste(LETTERS[h]," . ",i," . Cumulative Frequency",sep=""),site_id[h],f_counter,"Appendix",TRUE)
+                  #a_doc <- AddPlotImagesToAppendixWordDoc(a_doc,c_names,6,4,paste(LETTERS[h],".",i,".F - ",getSiteName(site_id[h]),sep=""),f_counter)
+                  f_counter <- f_counter + length(c_names)
+                }
+                #first_print = FALSE
+              }
+              
+              #AddTable.
+              if(section2[i] <= tableLngth && !is.null(appendix[[i]]))
+              {
+                if(!is_a_doc_landspace){
+                  a_doc <- startLandscape(a_doc)
+                  is_a_doc_landspace <- TRUE
+                  #print("is_a_doc_landspace is true - table-p1")
+                }
+                
+                for(j in 1:(length(appendix[[i]])))
+                {
+                  #paste(getPeriod(i)," - T",t_counter,sep="")
+                  a_doc_counter_list <- ReturnDocxTable(a_doc,tablesList,appendix[[i]][j],assessment,"APPX",paste("Station ",h,sep=""),t_counter,paste(LETTERS[h]," . ",i," . ",sep=""))
+                  a_doc <- a_doc_counter_list[[1]]
+                  t_counter <- a_doc_counter_list[[2]]
+                }
+                #a_doc <- addPageBreak(a_doc)
+                #a_doc <- endLandscape(a_doc)
+                #is_a_doc_landspace <- FALSE
+                #first_print = FALSE
+              }
+              
+              #AddHistograms.
+              h_names <- GetPlotImageNames('hplot',site_id[h],paste("P",p_order[i],sep=""))
+              if(length(h_names) != 0)
+              {
+                #a_docH <- addParagraph(a_docH,pot(paste("Station ",h," - ",getPeriod(p_order[i])),textProperties(font.weight='bold', font.size = 14)))
+                a_docH <- AddPlotImagesToWordDoc(a_docH,h_names,6,4,p_order[i],paste(LETTERS[h]," . ",i," . Histogram",sep=""),site_id[h],f_counter,"Appendix",TRUE)
+                #a_docH <- AddPlotImagesToAppendixWordDoc(a_docH,h_names,8,5,paste(LETTERS[h],".",i,".F - ",getSiteName(site_id[h]),sep=""),f_counter)
+                f_counter <- f_counter + length(h_names)
+                #first_print = FALSE
+              }
+              
+            }else{
+              
+              #AddTable.
+              if(section2[i] <= tableLngth && !is.null(appendix[[i]]))
+              {
+                if(!is_a_doc_landspace){
+                  a_doc <- startLandscape(a_doc)
+                  is_a_doc_landspace <- TRUE
+                  #print("is_a_doc_landspace is true - table-pN")
+                }
+                
+                for(j in 1:(length(appendix[[i]])))
+                {
+                  #paste(getPeriod(i)," - T",t_counter,sep="")
+                  a_doc_counter_list <- ReturnDocxTable(a_doc,tablesList,appendix[[i]][j],assessment,"APPX",paste("Station ",h,sep=""),t_counter,paste(LETTERS[h]," . ",i," . ",sep=""))
+                  a_doc <- a_doc_counter_list[[1]]
+                  t_counter <- a_doc_counter_list[[2]]
+                }
+                #a_doc <- addPageBreak(a_doc)
+                #a_doc <- endLandscape(a_doc)
+                #is_a_doc_landspace <- FALSE
+                #first_print = FALSE
+              }
+              
+              #AddCumFreqs.
+              if(p_order[i] != 4)
+              {
+                c_names <- GetPlotImageNames('cplot',site_id[h],paste("P",p_order[i],sep=""))
+                if(length(c_names) != 0)
+                {
+                  if(is_a_doc_landspace){
+                    a_doc <- endLandscape(a_doc)
+                    is_a_doc_landspace <- FALSE
+                    #print("is_a_doc_landspace is false - cplot-pN")
+                  }
+                  a_doc <- AddPlotImagesToWordDoc(a_doc,c_names,6,4,p_order[i],paste(LETTERS[h]," . ",i," . Cumulative Frequency",sep=""),site_id[h],f_counter,"Appendix",TRUE)
+                  #a_doc <- AddPlotImagesToAppendixWordDoc(a_doc,c_names,6,4,paste(LETTERS[h],".",i,".F - ",getSiteName(site_id[h]),sep=""),f_counter)
+                  f_counter <- f_counter + length(c_names)
+                }
+                #first_print = FALSE
+              }
+              
+              #AddHistograms.
+              h_names <- GetPlotImageNames('hplot',site_id[h],paste("P",p_order[i],sep=""))
+              if(length(h_names) != 0)
+              {
+                #a_docH <- addParagraph(a_docH,pot(paste("Station ",h," - ",getPeriod(p_order[i])),textProperties(font.weight='bold', font.size = 14)))
+                a_docH <- AddPlotImagesToWordDoc(a_docH,h_names,6,4,p_order[i],paste(LETTERS[h]," . ",i," . Histogram",sep=""),site_id[h],f_counter,"Appendix",TRUE)
+                #a_docH <- AddPlotImagesToAppendixWordDoc(a_docH,h_names,8,5,paste(LETTERS[h],".",i,".F - ",getSiteName(site_id[h]),sep=""),f_counter)
+                f_counter <- f_counter + length(h_names)
+                #first_print = FALSE
               }
             }
             
-            #Add Histograms.
-            h_names <- GetPlotImageNames('hplot',site_id[h],paste("P",p_order[i],sep=""))
-            if(length(h_names) != 0)
-            {
-              #a_docH <- addParagraph(a_docH,pot(paste("Station ",h," - ",getPeriod(p_order[i])),textProperties(font.weight='bold', font.size = 14)))
-              a_docH <- AddPlotImagesToWordDoc(a_docH,h_names,8,5,p_order[i],paste(LETTERS[h]," . ",i," . Histogram",sep=""),getSiteName(site_id[h]),f_counter,"Appendix")
-              #a_docH <- AddPlotImagesToAppendixWordDoc(a_docH,h_names,8,5,paste(LETTERS[h],".",i,".F - ",getSiteName(site_id[h]),sep=""),f_counter)
-              f_counter <- f_counter + length(h_names)
-            }
-            
-            #AddTable.
-            if(section2[i] <= tableLngth && !is.null(appendix[[i]]))
-            {
-              for(j in 1:(length(appendix[[i]])))
-              {
-                #paste(getPeriod(i)," - T",t_counter,sep="")
-                a_doc_counter_list <- ReturnDocxTable(a_doc,tablesList,appendix[[i]][j],assessment,"APPX",paste("Station ",h,sep=""),t_counter,paste(LETTERS[h]," . ",i," . ",sep=""))
-                a_doc <- a_doc_counter_list[[1]]
-                t_counter <- a_doc_counter_list[[2]]
-              }
-            }
           }
           
           # Write the Word document to a file
           #a_ooc <- addSection(a_doc, landscape = FALSE)
           #a_oocH <- addSection(a_docH, landscape = FALSE)
           
-          a_doc <- endLandscape(a_doc)
-          a_docH <- endLandscape(a_docH)
+          #a_doc <- endLandscape(a_doc)
+          #a_docH <- endLandscape(a_docH)
           
           wd <- getwd()
           setwd(paste(getwd(),"/Reports",sep=""))
@@ -1813,21 +1911,23 @@ GenerateYearStatisticsDocx<-function(filename,site_id,assessment,baseline){
   })
 }
 
-AddPlotImagesToWordDoc<-function(doc,img,w=9,h=6,period,plotName,site_name,cnt,type="Report"){
+AddPlotImagesToWordDoc<-function(doc,img,w=9,h=6,period,plotName,site,cnt,type="Report",odd_page_break=FALSE){
   
   if(length(img) != 0)
   {
     for(i in 1:(length(img)))
     {
-      #name <- gsub(paste(getwd(),"/temp/",sep=""),'',img[i],fixed=TRUE)
-      #name <- gsub('.jpg','',name,fixed=TRUE)
-      #ooc <- addParagraph(doc,paste(GetPlotTitleName(as.character(img[i]),period,plotName,site_name,type),cnt+i-1,sep=""))
-      #ooc <- addImage(doc, img[i],width=w,height=h)
-      #ooc <- addPageBreak(doc)
-      
-      doc <- addParagraph(doc, paste(GetPlotTitleName(as.character(img[i]),period,plotName,site_name,type),cnt+i-1,sep=""), font_size=12)
+      doc <- addParagraph(doc, paste(GetPlotTitleName(as.character(img[i]),period,plotName,site,type),cnt+i-1,sep=""), font_size=12)
       doc <- addImage(doc, img[i],h=h,w=w)
-      doc <- addPageBreak(doc)
+      
+      if(odd_page_break){
+        # Check if i is even
+        if (i %% 2 == 0 || length(img) == i) {
+          doc <- addPageBreak(doc)
+        }
+      }else{
+        doc <- addPageBreak(doc)
+      }
     }
   }
   
@@ -2084,6 +2184,8 @@ Tier1Weekly_FreqWksOverBaseline<-function(tList,sites,periods,asy,bl,row_names){
   
   for(i in 1:(length(sites)))
   {
+    print(sites[i])
+    
     if(!is.null(bl))
     {
       df <- FilterListByStringInName(tList,c("Y0-B-P1-",sites[i]))[[1]]
@@ -2229,12 +2331,14 @@ Tier1_Seasonal_ByStation<-function(tList,sites,periods,asy,bl,row_names,stn_loc)
   stn_names <- c()
   b <- as.integer(substr(asy[1],6,7)) 
   b <- c(getSeason(b),getSeason(b+4),getSeason(b+8))
-  seasons <- c(paste(extendMonthName(substr(b[1],1,3))," - ",
-                     extendMonthName(substr(b[1],5,7))),
-               paste(extendMonthName(substr(b[2],1,3))," - ",
-                     extendMonthName(substr(b[2],5,7))),
-               paste(extendMonthName(substr(b[3],1,3))," - ",
-                     extendMonthName(substr(b[3],5,7))))
+  # seasons <- c(paste(extendMonthName(substr(b[1],1,3))," - ",
+  #                    extendMonthName(substr(b[1],5,7))),
+  #              paste(extendMonthName(substr(b[2],1,3))," - ",
+  #                    extendMonthName(substr(b[2],5,7))),
+  #              paste(extendMonthName(substr(b[3],1,3))," - ",
+  #                    extendMonthName(substr(b[3],5,7))))
+  
+  seasons <- b
   
   for(i in 1:(length(sites)))
   {
@@ -3078,6 +3182,8 @@ getMonthCharacter<-function(num)
 #Status: tested.
 extendMonthName<-function(month)
 {
+  return(month)
+  
   tryCatch({
     if(month == "Jan")
     {
@@ -3117,7 +3223,7 @@ extendMonthName<-function(month)
       return("December")
     }
     return(month)
-    
+
   },error = function(err) {
     stop("ERROR: extendMonthName().")
   }) # END tryCatch
@@ -3300,7 +3406,7 @@ getSeason<-function(month)
 {
   tryCatch({
     month <- monthToInteger(month)
-    return(paste(month.abb[month],"-",month.abb[monthAddition(month,3)],sep=""))
+    return(paste(month.name[month],"-",month.name[monthAddition(month,3)],sep=""))
   },error = function(err) {
     stop("ERROR: getSeason().")
   }) # END tryCatch
@@ -3579,7 +3685,7 @@ getAbbSiteName<-function(site_id)
 #Parameters: site_id (character), abbreviated? (character)
 #Returns: character.
 #Status: tested.
-getSiteName<-function(site_id,abbv=TRUE)
+getSiteName<-function(site_id,abbv=FALSE)
 {
   if(abbv == TRUE)
   {
@@ -4184,19 +4290,22 @@ getDfPeriods<-function(period,startDate,df,abbv=FALSE)
     }else{
       start <- 1
     }
-    
+
     rVector <- c()
     sMonth <- as.numeric(format.Date(startDate,"%m"))
     sYear <- as.numeric(range(format.Date(df$Date, "%Y"),na.rm = TRUE)[1])
     eYear <- as.numeric(range(format.Date(df$Date, "%Y"),na.rm = TRUE)[2])
-    
+
     if(period == 1)#convert to weekly data.
     {
-      for(i in 1:52)
-      {
-        weeks <- unique(substr(week(df$Date),start=1,stop=3))
-        rVector <- c(rVector,paste(weeks[i],"_b",sep=""),paste(weeks[i],"_m",sep=""),weeks[i])
-        #rVector <- c(rVector,paste("Week #",i,"_b",sep=""),paste("Week #",i,sep=""))
+      # Define the custom order
+      order <- c(48, 49, 50, 51, 52, seq(1, 47))
+      
+      # Iterate in the specified order
+      for (i in order) {
+        #weeks <- unique(substr(week(df$Date), start = 1, stop = 3))
+        rVector <- c(rVector, paste(i, "_b", sep = ""), paste(i, "_m", sep = ""), i)
+        # rVector <- c(rVector, paste("Week #", i, "_b", sep = ""), paste("Week #", i, sep = ""))
       }
     }
     
@@ -4282,6 +4391,10 @@ b_boxplotFunc<- function(df,df_b,df_m,df_allYears,period,graphName,site_id,zoom,
       start <- 1
     }
     
+    baseline_title <- "baseline"
+    assessment_title <- "assessment"
+    middle_title <- "middle"
+    
     if(!is.null(df_b))
     {
       df2 <- setPlottingLevels(df_b,period,"_b",sDate, abbv_year)
@@ -4289,7 +4402,7 @@ b_boxplotFunc<- function(df,df_b,df_m,df_allYears,period,graphName,site_id,zoom,
       b_yearRange <- range(format.Date(df2$Date, "%Y"),na.rm = TRUE)
       b_yearRange <- paste(substr(as.character(b_yearRange[1]), start = start, stop = 4),
                            "-",
-                           substr(as.character(b_yearRange[2]), start = start, stop = 4)," (b)",sep="")
+                           substr(as.character(b_yearRange[2]), start = start, stop = 4)," (",baseline_title,")",sep="")
       df2$Year <- b_yearRange
       df_all <- rbind.data.frame(df_all,df2)
     }
@@ -4300,7 +4413,7 @@ b_boxplotFunc<- function(df,df_b,df_m,df_allYears,period,graphName,site_id,zoom,
       m_yearRange <- range(format.Date(df3$Date, "%Y"),na.rm = TRUE)
       m_yearRange <- paste(substr(as.character(m_yearRange[1]), start = start, stop = 4),
                            "-",
-                           substr(as.character(m_yearRange[2]), start = start, stop = 4)," (m)",sep="")
+                           substr(as.character(m_yearRange[2]), start = start, stop = 4)," (",middle_title,")",sep="")
       df3$Year <- m_yearRange
       df_all <- rbind.data.frame(df_all,df3)
     }
@@ -4314,7 +4427,7 @@ b_boxplotFunc<- function(df,df_b,df_m,df_allYears,period,graphName,site_id,zoom,
     yearRange <- range(format.Date(df1$Date, "%Y"),na.rm = TRUE)
     yearRange <- paste(substr(as.character(yearRange[1]), start = start, stop = 4),
                        "-",
-                       substr(as.character(yearRange[2]), start = start, stop = 4)," (a)",sep="")
+                       substr(as.character(yearRange[2]), start = start, stop = 4)," (",assessment_title,")",sep="")
     df1$Year <- yearRange
     df_all <- rbind.data.frame(df_all,df1)
     df_all <- df_all[!is.na(df_all$Date),]
@@ -4322,12 +4435,11 @@ b_boxplotFunc<- function(df,df_b,df_m,df_allYears,period,graphName,site_id,zoom,
     lv <- unique(df_all$Year)
     
     df_all$Year <- factor(df_all$Year, levels = lv,ordered = TRUE)
-    
     order <- getDfPeriods(period,sDate,df_all,abbv_year)
     #df_all[match(order, df_all$Period),]
     
     df_all$Period <- factor(df_all$Period, levels = order)
-    
+    df_all <- df_all[!is.na(df_all$Period), ]
     # df_all$Period2 <- substr(df_all$Period,start=1,stop=3)
     # orderP2 <- unique(df_all$Period2)
     # df_all$Period2 <- factor(df_all$Period2, levels = orderP2)
@@ -4341,17 +4453,18 @@ b_boxplotFunc<- function(df,df_b,df_m,df_allYears,period,graphName,site_id,zoom,
     
     for(i in 1:(length(periods)))
     {
-      if(substr(periods[i],start=nchar(periods[i])-1,stop = nchar(periods[i])-1) == "b")
+      if(sub(".*\\((.*?)\\).*", "\\1", periods[i]) == baseline_title)
       {
         colorVector <- c(colorVector,"#85C1E9")#Blue
       }else
       {
-        if(substr(periods[i],start=nchar(periods[i])-1,stop = nchar(periods[i])-1) == "m")
-        {
-          colorVector <- c(colorVector,"#90EE90")#Green
-        }else
+        if(sub(".*\\((.*?)\\).*", "\\1", periods[i]) == assessment_title)
         {
           colorVector <- c(colorVector,"#F1948A")#Red
+          
+        }else
+        {
+          colorVector <- c(colorVector,"#90EE90")#Green
         }
       }
     }
@@ -4392,7 +4505,7 @@ b_boxplotFunc<- function(df,df_b,df_m,df_allYears,period,graphName,site_id,zoom,
       
       #boxplot = ggplot(df_all, aes(x=Period, y=VALUE,fill=Year))  + geom_boxplot(outlier.size=1.5, lwd=.9 ,varwidth = FALSE,colour="#000000")+ stat_boxplot(geom = "errorbar", width = 0.5, lwd=.9) + labs(title=paste(getAbbSiteName(site_id),"\nBoxplot for ",graphName," [ZOOM 1:5]",sep=""), x=periodPrint(period), y="Salinity (ppt)")+  stat_summary(fun.y=mean, geom="point", shape=23, size=3.5, color="black", fill="grey")   + scale_y_continuous(breaks=breaks)+theme_light()+theme(plot.title = element_text(hjust=0.5),legend.position="bottom",axis.text.x = element_text(angle=angle))+coord_cartesian(ylim=c(datamin,x1))+ scale_fill_manual(values=colorVector)
       
-      boxplot = ggplot(df_all, aes(x=Period, y=VALUE,fill=Year))  + geom_boxplot(outlier.shape = bshape, outlier.size=1.5, lwd=line_width ,varwidth = FALSE,colour="#000000")+ stat_boxplot(geom = "errorbar", width = 0.5, lwd=.9) + labs(fill="Period",title=plotTitle, x=periodPrint(period), y="Salinity (ppt)")+  stat_summary(fun.y=mean, geom="point", shape=23, size=3.5, color="black", fill="grey")   + scale_y_continuous(breaks=breaks)+theme_light()+theme(plot.title = element_text(hjust=0.5),legend.position="bottom",axis.text.x = element_text(angle=angle))+coord_cartesian(ylim=c(datamin,x1))+ scale_fill_manual(values=colorVector)
+      boxplot = ggplot(df_all, aes(x=Period, y=VALUE,fill=Year))  + geom_boxplot(outlier.shape = bshape, outlier.size=1.5, lwd=line_width ,varwidth = FALSE,colour="#000000")+ stat_boxplot(geom = "errorbar", width = 0.5, lwd=.9) + labs(fill="Period",title=plotTitle, x=periodPrint(period), y="Salinity (ppt)")+  stat_summary(fun.y=mean, geom="point", shape=23, size=3.5, color="black", fill="grey")   + scale_y_continuous(breaks=breaks)+theme_light()+theme(plot.title = element_text(hjust=0.5),legend.position="bottom",axis.text.x = element_text(angle=angle))+coord_cartesian(ylim=c(datamin,x1))+ scale_fill_manual(values=colorVector) + scale_x_discrete(labels = function(x) gsub("_b", "", x))
       
     }else
     {
@@ -4400,14 +4513,36 @@ b_boxplotFunc<- function(df,df_b,df_m,df_allYears,period,graphName,site_id,zoom,
       increment <- GetIncrementInteger(datamax-datamin)
       breaks <- seq(0,datamax,increment)
       #boxplot = ggplot(df_all, aes(x=Period, y=VALUE,fill=Year))  + geom_boxplot(outlier.size=1.5, lwd=line_width ,varwidth = FALSE,colour="#000000")+ stat_boxplot(geom = "errorbar", width = 0.5, lwd=.9) + labs(title=paste(getAbbSiteName(site_id),"\nBoxplot for ",graphName,"\n",sep=""), x=periodPrint(period), y="Salinity (ppt)")+  stat_summary(fun.y=mean, geom="point", shape=23, size=3.5, color="black", fill="grey")   + scale_y_continuous(breaks=breaks)+theme_light()+theme(plot.title = element_text(hjust=0.5),legend.position="bottom",axis.text.x = element_text(angle=angle))+ scale_fill_manual(values=colorVector)
+
+      if(period == 1){
+        # Create a mapping vector for the remapped week numbers
+        week_mapping <- c(48:52, 1:47)  # Original weeks
+        remapped_weeks <- c(1:5, 6:52)  # New week numbers
+        names(remapped_weeks) <- as.character(week_mapping)  # Map old to new
+        
+        boxplot = ggplot(df_all, aes(x=Period, y=VALUE,fill=Year))  + geom_boxplot(outlier.shape = bshape, outlier.size=1.5, lwd=line_width ,varwidth = FALSE,colour="#000000")+
+          stat_boxplot(geom = "errorbar", width = 0.5, lwd=.5) +
+          labs(fill="Period",title=plotTitle, x=periodPrint(period), y="Salinity (ppt)")+
+          stat_summary(fun.y=mean, geom="point", shape=23, size=3.5, color="black",fill="grey")   +
+          scale_y_continuous(breaks=breaks)+theme_light()+
+          theme(plot.title = element_text(hjust=0.5),legend.position="bottom",axis.text.x = element_text(angle=angle))+
+          scale_fill_manual(values=colorVector) + scale_x_discrete(labels = function(x) {
+            # Remove "_b" and remap week numbers
+            x_no_b <- gsub("_b", "", x)  # Remove "_b"
+            remapped_labels <- remapped_weeks[x_no_b]  # Remap using week mapping
+            return(remapped_labels)
+          })
+        
+      }else{
+        boxplot = ggplot(df_all, aes(x=Period, y=VALUE,fill=Year))  + geom_boxplot(outlier.shape = bshape, outlier.size=1.5, lwd=line_width ,varwidth = FALSE,colour="#000000")+
+          stat_boxplot(geom = "errorbar", width = 0.5, lwd=.5) +
+          labs(fill="Period",title=plotTitle, x=periodPrint(period), y="Salinity (ppt)")+
+          stat_summary(fun.y=mean, geom="point", shape=23, size=3.5, color="black",fill="grey")   +
+          scale_y_continuous(breaks=breaks)+theme_light()+
+          theme(plot.title = element_text(hjust=0.5),legend.position="bottom",axis.text.x = element_text(angle=angle))+
+          scale_fill_manual(values=colorVector) + scale_x_discrete(labels = function(x) gsub("_b", "", x))
+      }
       
-      boxplot = ggplot(df_all, aes(x=Period, y=VALUE,fill=Year))  + geom_boxplot(outlier.shape = bshape, outlier.size=1.5, lwd=line_width ,varwidth = FALSE,colour="#000000")+
-        stat_boxplot(geom = "errorbar", width = 0.5, lwd=.5) +
-        labs(fill="Period",title=plotTitle, x=periodPrint(period), y="Salinity (ppt)")+
-        stat_summary(fun.y=mean, geom="point", shape=23, size=3.5, color="black",fill="grey")   +
-        scale_y_continuous(breaks=breaks)+theme_light()+
-        theme(plot.title = element_text(hjust=0.5),legend.position="bottom",axis.text.x = element_text(angle=angle))+
-        scale_fill_manual(values=colorVector)
     }
     
     #+ scale_fill_manual(values=colorVector), 
@@ -4537,7 +4672,7 @@ sevenDayMovingAveragePlot<- function(doc,df,df_b,df_m,period,graphName,site_id,s
     df <- setPlottingLevels(df,period,"",sDate)
     tempVector <- unique(df$Period)
     yearRange <- range(format.Date(df$Date,"%Y"),na.rm = TRUE)
-    yearRange <- paste(yearRange[1],"-",yearRange[2]," (a)",sep="")
+    yearRange <- paste(yearRange[1],"-",yearRange[2]," (assessment)",sep="")
     df <- df[order(df[[4]]),]
     
     if(!is.null(df_b))#baseline year.
@@ -4554,7 +4689,7 @@ sevenDayMovingAveragePlot<- function(doc,df,df_b,df_m,period,graphName,site_id,s
       df_b <- setPlottingLevels(df_b,period,"_b",sDate)
       #tempVector_b <- shiftVector(unique(df_b$Period),tempVector,"_b")
       #b_yearRange <- range(format.Date(df_b$Date,"%Y"),na.rm = TRUE)
-      b_yearRange <- paste(byr[1],"-",byr[2]," (b)",sep="")
+      b_yearRange <- paste(byr[1],"-",byr[2]," (baseline)",sep="")
       df_b <- df_b[order(df_b[[4]]),]
     }
     
@@ -4717,7 +4852,7 @@ sevenDayMovingAveragePlot<- function(doc,df,df_b,df_m,period,graphName,site_id,s
       }
       
       #round(seq(daymin,daymax,(daymax-daymin)/5),2)
-      x_breaks <- c(1,50,100,150,200,250,300,366)
+      x_breaks <- c(1,25,50,75,100,125,150,175,200,225,250,275,300,325,350,366)
       
       #round(seq(datamin,datamax,(datamax-datamin)/9),2)
       increment <- GetIncrementInteger(datamax-datamin)
@@ -4739,7 +4874,6 @@ sevenDayMovingAveragePlot<- function(doc,df,df_b,df_m,period,graphName,site_id,s
       
       range_data <- datamax - datamin
       padding_y <- .02 * range_data
-      
       movAvgPlot = ggplot(df_all, aes(x=n,y=VALUE,color=Year)) +
         scale_x_continuous(breaks=x_breaks) +
         scale_y_continuous(breaks=y_breaks) +
@@ -4755,15 +4889,35 @@ sevenDayMovingAveragePlot<- function(doc,df,df_b,df_m,period,graphName,site_id,s
       letter2 <- substr(mn[2,1],nchar(as.character(mn[2,1]))-2,nchar(as.character(mn[2,1])))
       
       
-      movAvgPlot <- movAvgPlot + geom_text(data=q05[1,], aes(daymin,q05[[1,"grp.mean"]],label = paste("q05",letter1,sep="")),color="black",nudge_x = x_pos_b[1],nudge_y = padding_y)#,check_overlap = TRUE)
-      movAvgPlot <- movAvgPlot + geom_text(data=mn[1,], aes(daymin,mn[[1,"grp.mean"]],label = paste("Mn",letter1,sep="")),color="black",nudge_x = x_pos_b[2],nudge_y = padding_y)#,check_overlap = TRUE)
-      movAvgPlot <- movAvgPlot + geom_text(data=q90[1,], aes(daymin,q90[[1,"grp.mean"]],label = paste("q90",letter1,sep="")),color="black",nudge_x = x_pos_b[3],nudge_y = padding_y)#,check_overlap = TRUE)
-      movAvgPlot <- movAvgPlot + geom_text(data=q95[1,], aes(daymin,q95[[1,"grp.mean"]],label = paste("q95",letter1,sep="")),color="black",nudge_x = x_pos_b[4],nudge_y = padding_y)#,check_overlap = TRUE)
+      # Adding quantile labels to the plot for each line
+      movAvgPlot <- movAvgPlot +
+        geom_text(data=q05[1,], aes(daymin, q05[[1, "grp.mean"]],
+                                    label = paste("q05", letter1,": ",round(q05[[1, "grp.mean"]], 2), sep="")),
+                  color="black", nudge_x = x_pos_b[1], nudge_y = padding_y) +
+        geom_text(data=mn[1,], aes(daymin, mn[[1, "grp.mean"]],
+                                   label = paste("Mn", letter1,": ",round(mn[[1, "grp.mean"]], 2), sep="")),
+                  color="black", nudge_x = x_pos_b[2], nudge_y = padding_y) +
+        geom_text(data=q90[1,], aes(daymin, q90[[1, "grp.mean"]],
+                                    label = paste("q90", letter1,": ",round(q90[[1, "grp.mean"]], 2), sep="")),
+                  color="black", nudge_x = x_pos_b[3], nudge_y = padding_y) +
+        geom_text(data=q95[1,], aes(daymin, q95[[1, "grp.mean"]],
+                                    label = paste("q95", letter1,": ",round(q95[[1, "grp.mean"]], 2), sep="")),
+                  color="black", nudge_x = x_pos_b[4], nudge_y = padding_y)
       
-      movAvgPlot <- movAvgPlot + geom_text(data=q05[2,], aes(daymax,q05[[2,"grp.mean"]],label = paste("q05",letter2,sep="")),color="black",nudge_x = x_pos_a[1],nudge_y = padding_y)#,check_overlap = TRUE)
-      movAvgPlot <- movAvgPlot + geom_text(data=mn[2,], aes(daymax,mn[[2,"grp.mean"]],label = paste("Mn",letter2,sep="")),color="black",nudge_x = x_pos_a[2],nudge_y = padding_y)#,check_overlap = TRUE)
-      movAvgPlot <- movAvgPlot + geom_text(data=q90[2,], aes(daymax,q90[[2,"grp.mean"]],label = paste("q90",letter2,sep="")),color="black",nudge_x = x_pos_a[3],nudge_y = padding_y)#,check_overlap = TRUE)
-      movAvgPlot <- movAvgPlot + geom_text(data=q95[2,], aes(daymax,q95[[2,"grp.mean"]],label = paste("q95",letter2,sep="")),color="black",nudge_x = x_pos_a[4],nudge_y = padding_y)#,check_overlap = TRUE)
+      # Repeat for the second line if needed, using 'letter2' and appropriate position adjustments
+      movAvgPlot <- movAvgPlot +
+        geom_text(data=q05[2,], aes(daymax, q05[[2, "grp.mean"]],
+                                    label = paste("q05", letter2,": ",round(q05[[2, "grp.mean"]], 2), sep="")),
+                  color="black", nudge_x = x_pos_a[1], nudge_y = padding_y) +
+        geom_text(data=mn[2,], aes(daymax, mn[[2, "grp.mean"]],
+                                   label = paste("Mn", letter2,": ",round(mn[[2, "grp.mean"]], 2), sep="")),
+                  color="black", nudge_x = x_pos_a[2], nudge_y = padding_y) +
+        geom_text(data=q90[2,], aes(daymax, q90[[2, "grp.mean"]],
+                                    label = paste("q90", letter2,": ",round(q90[[2, "grp.mean"]], 2), sep="")),
+                  color="black", nudge_x = x_pos_a[3], nudge_y = padding_y) +
+        geom_text(data=q95[2,], aes(daymax, q95[[2, "grp.mean"]],
+                                    label = paste("q95", letter2,": ",round(q95[[2, "grp.mean"]], 2), sep="")),
+                  color="black", nudge_x = x_pos_a[4], nudge_y = padding_y)
       
       movAvgPlot <- movAvgPlot + coord_cartesian(clip = "off")
       
@@ -4802,14 +4956,17 @@ b_cumFreqOrHistogramToDocx<- function(doc,df,df_b,df_m,period,graphName,site_id,
     df$n <- 1
     df <- setPlottingLevels(df,period,"",sDate)
     
-    if(period != 1){
+    if(!(floor(period) %in% c(1,2))){
       tempVector <- unique(df$Period)
+    }else if (period == 2){
+      tempVector <- c("Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+        "Jul", "Aug", "Sep", "Oct", "Nov")
     }else{
-      tempVector <- c(48, 49, 50, 51, 21, seq(1:47))
+      tempVector <- c(48, 49, 50, 51, 52, seq(1:47))
     }
     
     yearRange <- range(format.Date(df$Date,"%Y"),na.rm = TRUE)
-    yearRange <- paste(yearRange[1],"-",yearRange[2]," (a)",sep="")
+    yearRange <- paste(yearRange[1],"-",yearRange[2]," (assessment)",sep="")
     df <- df[order(df[[4]]),]
     
     if(!is.null(df_b))#baseline year.
@@ -4818,7 +4975,7 @@ b_cumFreqOrHistogramToDocx<- function(doc,df,df_b,df_m,period,graphName,site_id,
       df_b <- setPlottingLevels(df_b,period,"_b",sDate)
       #tempVector_b <- shiftVector(unique(df_b$Period),tempVector,"_b")
       b_yearRange <- range(format.Date(df_b$Date,"%Y"),na.rm = TRUE)
-      b_yearRange <- paste(b_yearRange[1],"-",b_yearRange[2]," (b)",sep="")
+      b_yearRange <- paste(b_yearRange[1],"-",b_yearRange[2]," (baseline)",sep="")
       df_b <- df_b[order(df_b[[4]]),]
     }
     
@@ -4833,12 +4990,15 @@ b_cumFreqOrHistogramToDocx<- function(doc,df,df_b,df_m,period,graphName,site_id,
     }
     
     #set the year range from startYear-endYear
-    if(period == 4)
+    if(period == 1)
     {
+      numPlots <- 52
+    }else if (period == 2){
+      numPlots <- 12
+    }else if (period == 3){
+      numPlots <- 3
+    }else{
       numPlots <- 1
-    }else
-    {
-      numPlots <- length(tempVector)
     }
     
   },error = function(err) {
@@ -4954,6 +5114,10 @@ b_cumFreqOrHistogramToDocx<- function(doc,df,df_b,df_m,period,graphName,site_id,
         d <- NULL 
       }) # END tryCatch
       
+      if(nrow(df_all) == 0){
+        print(paste("No data found for: cplot-",sprintf("%02d", i),"-",site_id,"-P",fLabel[3],"",sep=""))
+        next
+      }
       #cumfreqplot = ggplot(d, aes_q(x=as.name(names(d)[4]), colour="plum", y=as.name(names(d)[6]))) + geom_point(aes(y = cumsum(n))) + labs(title=paste("Cum Freq for ",graphName,sep=""), y="Cumulative Frequency", x=paste("Salinity ",yearRange,sep="")) + geom_vline(data = data, aes(xintercept=q),linetype = "solid") + geom_text(data = data, mapping= aes(label= paste(q,"\nQ",percentiles), x=q, y= -Inf), hjust= .15, vjust= -.5, inherit.aes=F) + theme(plot.title = element_text(size = rel(1.5), face="bold"), axis.title = element_text(face="bold"), axis.line = element_line(colour = "black", size = .7, linetype = "solid"), legend.position="none", panel.background = element_rect(fill="NA"), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + scale_fill_brewer(palette="Paired") + scale_x_continuous(breaks=round(seq(datamin,datamax,(datamax-datamin)/5),2)) + scale_y_continuous(breaks = scales::pretty_breaks(n = 10))
       #print(cumfreqplot)
       #cumfreqplot = ggplot() + geom_point(data=d,aes(x=SALINITY_TOP,y = cumsum(n)),pch=21, size=5, colour="blue") + geom_polygon(data=d_b,mapping=aes_q(x=as.name(names(d_b)[4]), colour="plum", y=as.name(names(d_b)[5])),alpha=0) + labs(title=paste("Cum Freq for ",graphName,sep=""), y="Cumulative Frequency", x=paste("Salinity ",yearRange,sep="")) + geom_vline(data = data, aes(xintercept=q),linetype = "solid") + geom_text(data = data, mapping= aes(label= paste(q,"\nQ",percentiles), x=q, y= -Inf), hjust= .15, vjust= -.5, inherit.aes=F) + theme(plot.title = element_text(size = rel(1.5), face="bold"), axis.title = element_text(face="bold"), axis.line = element_line(colour = "black", size = .7, linetype = "solid"), legend.position="none", panel.background = element_rect(fill="NA"), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + scale_fill_brewer(palette="Paired")
@@ -4999,6 +5163,7 @@ b_cumFreqOrHistogramToDocx<- function(doc,df,df_b,df_m,period,graphName,site_id,
         {
           num_i <- i
         }
+        
         imgName <- paste("cplot-",num_i,"-",site_id,"-P",fLabel[3],".jpg",sep="")
         
         ggsave(path="temp",filename=imgName,width=6,height=4,units="in",dpi=150)
@@ -5710,7 +5875,6 @@ FigureCounter<-function(t,p)
 #Created by KLA on 02/04/2020.
 ReturnDocxTable <- function(doc,tablesList,i,asse,filterBy="",site="",t_counter=NA,appx_name="",stn=""){
   table_title <- ""
-  
   tryCatch({
     if(i %in% c(1,2))
     {
@@ -5825,6 +5989,7 @@ ReturnDocxTable <- function(doc,tablesList,i,asse,filterBy="",site="",t_counter=
     
     if(floor(i) == 5)
     {
+      
       t_names <- list(T5.1="Number of weeks per year that the weekly average of salinity measurements exceeds the baseline average salinity - T",
                       T5.2="Assessment Year - Weekly (7-day moving average) Statistics - T")
       
